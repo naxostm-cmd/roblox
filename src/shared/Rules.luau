@@ -1,6 +1,6 @@
 -- Pure rules shared with the CLI tests; never trust client prices or inventories.
 local Rules = {}
-local categories = { top = true, bottom = true, shoes = true, accessory = true }
+local categories = { top = true, bottom = true, shoes = true, accessory = true, bag = true, jewelry = true, glasses = true }
 
 function Rules.item(catalog, id)
 	for _, item in ipairs(catalog) do

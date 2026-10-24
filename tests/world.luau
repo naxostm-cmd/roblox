@@ -1,5 +1,5 @@
 -- Geometry checks with a small engine stand-in, not a Roblox rendering test.
-return function(source, configSource, garmentsSource)
+return function(source, configSource, garmentsSource, mallSource)
  local all = {}
  local vector = {}
  vector.__index = vector
@@ -57,8 +57,12 @@ return function(source, configSource, garmentsSource)
  local config = assert(loadstring(configSource))()
  local garmentLoader = assert(loadstring(garmentsSource)); setfenv(garmentLoader, env)
  local garments = garmentLoader()
+ local Mall = assert(loadstring(mallSource))()
+ local rng = { NextInteger = function(_, low) return low end }
+ local catalog = Mall.generate(rng,nil,config.Palette)
+ World.configure(Mall.Stores)
  local opened, products = {}, {}
- local mall = World.create(function(player, category, id) opened[category] = player; if id then products[id] = true end end, config.Catalog, garments)
+ local mall = World.create(function(player, category, id) opened[category] = player; if id then products[id] = true end end, catalog, garments)
  local parts, prompts, shops = {}, {}, {}
  for _, obj in ipairs(all) do
   if obj.ClassName == "Part" or obj.ClassName == "SpawnLocation" or obj.ClassName == "Seat" then
@@ -66,20 +70,21 @@ return function(source, configSource, garmentsSource)
   elseif obj.ClassName == "ProximityPrompt" then table.insert(prompts, obj)
   elseif obj.ClassName == "Model" then shops[obj.Name] = obj end
  end
- assert(#prompts == 9 and #parts > 350, "full gallery and four interactive stores required")
+ assert(#prompts == 80 and #parts > 350, "full gallery and four interactive stores required")
  for _, prompt in ipairs(prompts) do
   assert(prompt.callback and prompt.MaxActivationDistance >= 9)
   prompt.callback("test-player")
  end
  local productCount = 0
- for _, item in ipairs(config.Catalog) do
-  if item.store == "top" then assert(products[item.id], "missing garment interaction"); productCount += 1 end
+ for _, item in ipairs(catalog) do
+  assert(products[item.id], "missing garment interaction"); productCount += 1
  end
- assert(productCount == 5, "five interactive garments")
+ assert(productCount == 60, "sixty interactive products")
  local details = {}
  for _, p in ipairs(parts) do details[p.Name] = (details[p.Name] or 0) + 1 end
- assert(details.SkirtPleat == 32 and details.GoldButton == 3 and details.Lacing == 4 and details.Bow == 2, "distinct garment geometry must be built")
- for _, category in ipairs({ "top", "bottom", "shoes", "accessory" }) do
+ assert(details.SkirtPleat and details.GoldButton and details.Lacing and details.BagBody and details.GlassesFrame and details.NecklaceBead and details.ShoeBody, "clothing and all accessory departments have geometry")
+ for _, store in ipairs(Mall.Stores) do
+  local category = store.id
   assert(opened[category] == "test-player", "missing shop callback: " .. category)
   assert(shops["Shop_" .. category], "missing shop building")
   local target = World.StorePositions[category]
@@ -147,6 +152,42 @@ return function(source, configSource, garmentsSource)
   for _, y in ipairs({ -2, 0, 2 }) do
    for _, z in ipairs({ -1, 0, 1 }) do assert(not blocked(spawn.X+x,spawn.Y+y,spawn.Z+z), "spawn overlaps furniture") end
   end
+ end
+ -- Exercise every generated design on both supported rig layouts.
+ local designs = {}
+ local seed = 42
+ local allRng = {NextInteger = function(_,low,high) seed=(seed*16807)%2147483647; return low+seed%(high-low+1) end}
+ for _=1,100 do for _, item in ipairs(Mall.generate(allRng,nil,config.Palette)) do designs[item.style]=item end end
+ for _, rigType in ipairs({"R6","R15"}) do
+  local rig=instance("Model"); rig.Parent=workspace
+  local names=if rigType=="R6" then {"Torso","Head","Left Arm","Right Arm","Left Leg","Right Leg"} else {"UpperTorso","LowerTorso","Head","LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg","LeftLowerLeg","RightLowerLeg","LeftFoot","RightFoot"}
+  for _, name in ipairs(names) do
+   local limb=instance("Part"); limb.Name=name; limb.Size=vec(2,2,1); limb.CFrame=frame(0,0,0); limb.Parent=rig
+  end
+  local count=0
+  for _, item in pairs(designs) do
+   local outfit=instance("Folder"); outfit.Parent=rig
+   garments.build(rig,item,vec(1,0.5,0.5),outfit)
+   assert(#outfit:GetChildren()>0,item.style.." missing geometry on "..rigType)
+   for _, obj in ipairs(outfit:GetChildren()) do
+    assert(not obj.CanCollide and obj.Massless and obj:FindFirstChildOfClass("WeldConstraint"), "wearable must be attached without blocking movement")
+   end
+   count+=1; outfit:Destroy()
+  end
+  assert(count==42); rig:Destroy()
+ end
+ print("PASS: all 42 garment designs construct on R6 and R15 stand-ins")
+ local previousStock = {}
+ for _, store in ipairs(Mall.Stores) do previousStock[store.id] = shops["Shop_"..store.id]:FindFirstChild("Stock") end
+ local nextCatalog = Mall.generate(rng,catalog,config.Palette)
+ World.refreshStock(nextCatalog,garments,function() end)
+ for _, store in ipairs(Mall.Stores) do
+  assert(previousStock[store.id].destroyed, "old stock must be removed")
+  assert(not shops["Shop_"..store.id].destroyed, "refresh must preserve store building")
+  local stock = shops["Shop_"..store.id]:FindFirstChild("Stock")
+  local livePrompts = 0
+  for _, obj in ipairs(stock:GetDescendants()) do if obj.ClassName == "ProximityPrompt" then livePrompts += 1 end end
+  assert(livePrompts == 3, "refresh must not accumulate products")
  end
  World.create(function() end)
  assert(mall.destroyed and not original.destroyed, "rebuild must replace only generated gallery")

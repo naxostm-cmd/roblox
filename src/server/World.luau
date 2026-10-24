@@ -6,15 +6,16 @@ local pink = Color3.fromRGB(194, 87, 131)
 local dark = Color3.fromRGB(48, 43, 55)
 local gold = Color3.fromRGB(207, 171, 105)
 local glass = Color3.fromRGB(190, 220, 225)
-local shops = {
- { category = "top", name = "ROSE ATELIER", subtitle = "FASONY • KOLORY • PRZYMIARKI", x = -42, z = 0, color = Color3.fromRGB(202, 114, 148) },
- { category = "bottom", name = "STUDIO DENIM", subtitle = "DÓŁ • TROUSERS & SKIRTS", x = 42, z = 0, color = Color3.fromRGB(96, 137, 167) },
- { category = "shoes", name = "SOLE SOCIETY", subtitle = "BUTY • SHOE BOUTIQUE", x = -42, z = 42, color = Color3.fromRGB(169, 123, 94) },
- { category = "accessory", name = "GOLDEN DETAILS", subtitle = "DODATKI • FINISH YOUR LOOK", x = 42, z = 42, color = gold },
-}
+local shops, storeModels = {}, {}
 World.StorePositions = {}
-for _, shop in ipairs(shops) do
- World.StorePositions[shop.category] = Vector3.new(shop.x, FLOOR + 3, shop.z)
+function World.configure(definitions)
+ shops = {}; World.StorePositions = {}
+ for _, definition in ipairs(definitions) do
+  local shop = table.clone(definition)
+  shop.color = Color3.fromRGB(table.unpack(definition.color)); shop.subtitle = definition.specialty
+  table.insert(shops, shop)
+  World.StorePositions[shop.id] = Vector3.new(shop.x, FLOOR + 3, shop.z)
+ end
 end
 World.Stage = CFrame.new(0, FLOOR + 5, -48) * CFrame.Angles(0, math.pi, 0)
 World.Lobby = CFrame.new(0, FLOOR + 4, 78)
@@ -67,7 +68,7 @@ local function mannequin(parent, x, z, color)
 end
 
 local function buildShop(parent, shop, onStore, catalog, garments)
- local model = Instance.new("Model"); model.Name = "Shop_" .. shop.category; model.Parent = parent
+ local model = Instance.new("Model"); model.Name = "Shop_" .. shop.id; model.Parent = parent
  local x, z = shop.x, shop.z
  local inward = if x < 0 then 1 else -1
  local frontX, backX = x + inward * 15, x - inward * 15
@@ -83,7 +84,7 @@ local function buildShop(parent, shop, onStore, catalog, garments)
  end
  part(model, "Ceiling", Vector3.new(31, 0.5, 33), Vector3.new(x, FLOOR + 17, z), cream)
  local facing = CFrame.new(frontX + inward * 0.3, FLOOR + 13.5, z) * CFrame.Angles(0, if inward == 1 then -math.pi / 2 else math.pi / 2, 0)
- sign(model, "StoreSign", shop.name .. "\n" .. shop.subtitle, Vector3.new(30, 4.5, 0.5), facing, shop.color)
+ sign(model, "StoreSign", string.format("%02d • %s\n%s", shop.number, shop.name, shop.subtitle), Vector3.new(30, 4.5, 0.5), facing, shop.color)
  part(model, "LightStrip", Vector3.new(0.4, 0.2, 31), Vector3.new(frontX + inward * 0.4, FLOOR + 16.3, z), cream, Enum.Material.Neon)
  local ceilingLight = part(model, "CeilingLight", Vector3.new(20, 0.15, 1), Vector3.new(x, FLOOR + 16.5, z), cream, Enum.Material.Neon)
  local light = Instance.new("PointLight"); light.Color = cream; light.Brightness = 0.7; light.Range = 27; light.Parent = ceilingLight
@@ -102,31 +103,38 @@ local function buildShop(parent, shop, onStore, catalog, garments)
  part(model, "CounterTop", Vector3.new(5.3, 0.25, 5.3), Vector3.new(x, FLOOR + 3.1, z), cream, Enum.Material.Marble)
  local prompt = Instance.new("ProximityPrompt"); prompt.ActionText = "Przymierz i kup"; prompt.ObjectText = shop.name
  prompt.MaxActivationDistance = 12; prompt.RequiresLineOfSight = false; prompt.HoldDuration = 0; prompt.Parent = counter
- prompt.Triggered:Connect(function(player) onStore(player, shop.category) end)
- if shop.category == "top" then
-  -- A fitting alcove with an open entrance, textile curtains and a decorative mirror.
+ prompt.Triggered:Connect(function(player) onStore(player, shop.id) end)
+ if shop.category == "top" or shop.category == "bottom" then
   for _, side in ipairs({ -1, 1 }) do
-   part(model, "FittingWall", Vector3.new(0.3, 10, 8), Vector3.new(-41 + side * 5, FLOOR + 5, 11), cream)
-   part(model, "VelvetCurtain", Vector3.new(3, 9, 0.25), Vector3.new(-41 + side * 3.5, FLOOR + 4.5, 7), shop.color, Enum.Material.Fabric)
+   part(model, "FittingWall", Vector3.new(0.3, 10, 8), Vector3.new(x + side * 5, FLOOR + 5, z + 11), cream)
+   part(model, "VelvetCurtain", Vector3.new(3, 9, 0.25), Vector3.new(x + side * 3.5, FLOOR + 4.5, z + 7), shop.color, Enum.Material.Fabric)
   end
-  part(model, "MirrorFrame", Vector3.new(8, 9, 0.3), Vector3.new(-41, FLOOR + 5, 14.7), gold, Enum.Material.Metal)
-  local mirror = part(model, "DecorativeMirror", Vector3.new(7.4, 8.4, 0.15), Vector3.new(-41, FLOOR + 5, 14.45), glass, Enum.Material.Glass)
+  part(model, "MirrorFrame", Vector3.new(8, 9, 0.3), Vector3.new(x, FLOOR + 5, z + 14.7), gold, Enum.Material.Metal)
+  local mirror = part(model, "DecorativeMirror", Vector3.new(7.4, 8.4, 0.15), Vector3.new(x, FLOOR + 5, z + 14.45), glass, Enum.Material.Glass)
   mirror.Reflectance = 0.35
-  sign(model, "FittingSign", "PRZYMIERZALNIA", Vector3.new(9, 1.4, 0.3), CFrame.new(-41, FLOOR + 10.8, 7), dark, gold)
-  sign(model, "CollectionSign", "ROSE ATELIER\n5 FASONÓW • 6 KOLORÓW", Vector3.new(19, 3, 0.3), CFrame.new(-56.4, FLOOR + 12, -1) * CFrame.Angles(0, -math.pi / 2, 0), shop.color)
-  if catalog and garments then
-   local index = 0
-   for _, item in ipairs(catalog) do
-    if item.store ~= "top" then continue end
-    index += 1
-    local display = mannequin(model, -52, -12 + (index - 1) * 5.6, cream)
-    local outfit = Instance.new("Folder"); outfit.Name = "SQOutfit"; outfit.Parent = display
-    garments.build(display, item, Color3.fromRGB(table.unpack(item.color)), outfit)
-    local torso = display:FindFirstChild("Torso")
-    local productPrompt = Instance.new("ProximityPrompt"); productPrompt.ObjectText = item.name .. " • " .. item.price .. " zł"
-    productPrompt.ActionText = "Fason i kolory"; productPrompt.MaxActivationDistance = 9; productPrompt.RequiresLineOfSight = false; productPrompt.Parent = torso
-    productPrompt.Triggered:Connect(function(player) onStore(player, "top", item.id) end)
-   end
+ else
+  part(model, "DisplayShelf", Vector3.new(2, 0.4, 25), Vector3.new(backX + inward * 1.5, FLOOR + 5, z), gold, Enum.Material.Metal)
+ end
+ storeModels[shop.id] = model
+end
+
+function World.refreshStock(catalog, garments, onStore)
+ for _, shop in ipairs(shops) do
+  local model = storeModels[shop.id]
+  local old = model:FindFirstChild("Stock"); if old then old:Destroy() end
+  local stock = Instance.new("Folder"); stock.Name = "Stock"; stock.Parent = model
+  local index = 0
+  for _, item in ipairs(catalog) do
+   if item.store ~= shop.id then continue end
+   index += 1
+   local inward = if shop.x < 0 then 1 else -1
+   local display = mannequin(stock, shop.x - inward * 10, shop.z - 10 + (index-1)*10, cream)
+   local outfit = Instance.new("Folder"); outfit.Name = "SQOutfit"; outfit.Parent = display
+   garments.build(display, item, Color3.fromRGB(table.unpack(item.color)), outfit)
+   local torso = display:FindFirstChild("Torso")
+   local prompt = Instance.new("ProximityPrompt"); prompt.ObjectText = item.name .. " • " .. item.price .. " zł"
+   prompt.ActionText = "Fason i kolory"; prompt.MaxActivationDistance = 9; prompt.RequiresLineOfSight = false; prompt.Parent = torso
+   prompt.Triggered:Connect(function(player) onStore(player, shop.id, item.id) end)
   end
  end
 end
@@ -186,29 +194,35 @@ function World.create(onStore, catalog, garments)
  local old = workspace:FindFirstChild("ShoppingQueenPrototype")
  if old then old:Destroy() end
  local mall = Instance.new("Folder"); mall.Name = "ShoppingQueenPrototype"; mall.Parent = workspace
- part(mall, "Foundation", Vector3.new(126, 2, 160), Vector3.new(0, FLOOR - 1, 8), dark, Enum.Material.Concrete)
+ part(mall, "Foundation", Vector3.new(126, 2, 496), Vector3.new(0, FLOOR - 1, -160), dark, Enum.Material.Concrete)
  -- Narrow grout channels are gaps between tiles, not overlapping surfaces.
  for x = -60, 60, 10 do
-  for z = -67, 83, 10 do
+  for z = -403, 83, 10 do
    part(mall, "FloorTile", Vector3.new(9.96, 0.12, 9.96), Vector3.new(x, FLOOR + 0.08, z), if (x + z) % 20 == 3 then cream else Color3.fromRGB(231, 221, 213), Enum.Material.Marble)
   end
  end
  for _, side in ipairs({ -1, 1 }) do
-  part(mall, "GalleryWall", Vector3.new(1, 25, 160), Vector3.new(side * 63, FLOOR + 12.5, 8), cream)
-  for z = -68, 72, 20 do
+  part(mall, "GalleryWall", Vector3.new(1, 25, 496), Vector3.new(side * 63, FLOOR + 12.5, -160), cream)
+  for z = -399, 63, 42 do
    part(mall, "GalleryColumn", Vector3.new(2, 23, 2), Vector3.new(side * 23, FLOOR + 11.5, z), cream, Enum.Material.Marble)
   end
-  part(mall, "GalleryBeam", Vector3.new(2.5, 1, 157), Vector3.new(side * 23, FLOOR + 23, 8), gold, Enum.Material.Metal)
-  part(mall, "WalkwayLight", Vector3.new(0.2, 0.12, 112), Vector3.new(side * 20, FLOOR + 0.2, 6), gold, Enum.Material.Neon)
+  part(mall, "GalleryBeam", Vector3.new(2.5, 1, 493), Vector3.new(side * 23, FLOOR + 23, -160), gold, Enum.Material.Metal)
+  part(mall, "WalkwayLight", Vector3.new(0.2, 0.12, 472), Vector3.new(side * 20, FLOOR + 0.2, -160), gold, Enum.Material.Neon)
  end
- part(mall, "BackWall", Vector3.new(126, 25, 1), Vector3.new(0, FLOOR + 12.5, -72), cream)
+ part(mall, "BackWall", Vector3.new(126, 25, 1), Vector3.new(0, FLOOR + 12.5, -408), cream)
  part(mall, "EntranceWall", Vector3.new(126, 25, 1), Vector3.new(0, FLOOR + 12.5, 88), cream)
- local roof = part(mall, "Skylight", Vector3.new(45, 0.25, 156), Vector3.new(0, FLOOR + 25, 8), glass, Enum.Material.Glass)
+ local roof = part(mall, "Skylight", Vector3.new(45, 0.25, 492), Vector3.new(0, FLOOR + 25, -160), glass, Enum.Material.Glass)
  roof.Transparency = 0.75; roof.CastShadow = false
- for z = -60, 80, 20 do
+ for z = -400, 80, 20 do
   part(mall, "RoofBeam", Vector3.new(48, 0.4, 0.4), Vector3.new(0, FLOOR + 25.2, z), gold, Enum.Material.Metal)
  end
  for _, shop in ipairs(shops) do buildShop(mall, shop, onStore, catalog, garments) end
+ for _, shop in ipairs(shops) do
+  if shop.number % 2 == 1 then
+   sign(mall, "Wayfinding", "LOKALE " .. shop.number .. " / " .. (shop.number+1), Vector3.new(12, 1.5, 0.3), CFrame.new(0, FLOOR + 20, shop.z) * CFrame.Angles(0, math.pi, 0), dark, gold)
+  end
+ end
+ if catalog and garments then World.refreshStock(catalog, garments, onStore) end
  -- Stage and steps, oriented towards the audience and entrance.
  part(mall, "Runway", Vector3.new(14, 2, 29), Vector3.new(0, FLOOR + 1, -40), dark, Enum.Material.Marble)
  part(mall, "RunwayCarpet", Vector3.new(10, 0.12, 29), Vector3.new(0, FLOOR + 2.08, -40), pink, Enum.Material.Fabric)

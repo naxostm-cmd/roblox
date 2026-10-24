@@ -4,6 +4,9 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Rules = require(ReplicatedStorage.Shared.Rules)
 local Access = require(ReplicatedStorage.Shared.Access)
 local World = require(script.World)
+local Mall = require(ReplicatedStorage.Shared.Mall)
+local Garments = require(ReplicatedStorage.Shared.Garments)
+World.configure(Mall.Stores)
 local Appearance = require(script.Appearance)
 
 local remotes = Instance.new("Folder"); remotes.Name = "ShoppingQueen"; remotes.Parent = ReplicatedStorage
@@ -12,6 +15,7 @@ local update = Instance.new("RemoteEvent"); update.Name = "Update"; update.Paren
 local state = { phase = "Lobby", endsAt = 0, themes = {}, round = 0, presenter = 0, slot = 0, showId = 0, results = {} }
 local participants, data, votes, lastRequest = {}, {}, {}, {}
 local rng = Random.new()
+local activeCatalog = Mall.generate(rng, nil, Config.Palette)
 
 local function eligible()
 	local ids = {}
@@ -34,7 +38,7 @@ local function send(player, message, store, fittingItem)
 		if participant.Parent == Players then table.insert(roster, { userId = participant.UserId, name = participant.DisplayName }) end
 	end
 	update:FireClient(player, {
-		fittingItem = fittingItem, playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
+		catalog = activeCatalog, fittingItem = fittingItem, playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
 		phase = state.phase, endsAt = state.endsAt, round = state.round, themes = state.themes,
 		presenter = state.presenter, slot = state.slot, showId = state.showId, results = state.results,
 		roster = roster, participating = own ~= nil, budget = if own then own.budget else 0,
@@ -71,12 +75,12 @@ end
 local function displayFor(player)
 	local own = data[player.UserId]
 	if state.phase == "Showcase" and state.presenter == player.UserId and own then
-		Appearance.apply(player.Character, if own.saved[state.slot] then own.looks[state.slot] else {}, Config.Catalog)
+		Appearance.apply(player.Character, if own.saved[state.slot] then own.looks[state.slot] else {}, activeCatalog)
 		move(player, World.Stage, true)
 	elseif state.phase == "Shopping" and own then
-		Appearance.apply(player.Character, own.looks[own.activeSlot], Config.Catalog)
+		Appearance.apply(player.Character, own.looks[own.activeSlot], activeCatalog)
 	else
-		Appearance.apply(player.Character, nil, Config.Catalog)
+		Appearance.apply(player.Character, nil, activeCatalog)
 	end
 end
 
@@ -101,10 +105,11 @@ Players.PlayerRemoving:Connect(function(player)
 	task.defer(broadcast)
 end)
 
-World.create(function(player, category, fittingItem)
+local function openStore(player, category, fittingItem)
 	if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then send(player, nil, category, fittingItem)
 	else send(player, "Poczekaj w salonie — wejdziesz do sklepów jako uczestnik rundy.") end
-end, Config.Catalog, require(ReplicatedStorage.Shared.Garments))
+end
+World.create(openStore, activeCatalog, Garments)
 
 -- Walls contain normal movement. This also covers resets, falls and attempts to
 -- move a waiting character outside the room; the decision belongs to the server.
@@ -148,24 +153,24 @@ request.OnServerEvent:Connect(function(player, action, payload)
 		own.activeSlot = slot; displayFor(player); send(player, message); return
 	end
 	if type(payload.id) ~= "string" or #payload.id > 64 then return end
-	local item = Rules.item(Config.Catalog, payload.id)
-	if not item then return end
+	local item = Rules.item(activeCatalog, payload.id)
+	if not item then send(player, "Ten produkt nie jest dostępny w bieżącej kolekcji."); return end
 	if action == "Buy" or action == "Try" then
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if not root or (root.Position - World.StorePositions[item.store or item.category]).Magnitude > Config.StoreDistance then
-			send(player, "Podejdź do odpowiedniego sklepu."); return
+			send(player, "Podejdź do sklepu " .. Mall.store(item.store).name .. "."); return
 		end
 		if action == "Try" then
-			local preview, errorMessage = Rules.preview(own, Config.Catalog, slot, item.id, payload.color, Config.Palette)
+			local preview, errorMessage = Rules.preview(own, activeCatalog, slot, item.id, payload.color, Config.Palette)
             if not preview then send(player, errorMessage); return end
-			Appearance.apply(player.Character, preview, Config.Catalog)
+			Appearance.apply(player.Character, preview, activeCatalog)
 			send(player, "Przymiarka — aby zachować produkt, kup go i wybierz do stylizacji."); return
 		end
 		local _, message = Rules.buy(own, item)
 		send(player, message); return
 	end
 	if action == "Equip" then
-		local _, message = Rules.equip(own, Config.Catalog, slot, item.id, payload.color, Config.Palette)
+		local _, message = Rules.equip(own, activeCatalog, slot, item.id, payload.color, Config.Palette)
 		own.activeSlot = slot; displayFor(player); send(player, message)
 	end
 end)
@@ -185,7 +190,7 @@ local function enough() return activeCount() >= Config.MinPlayers end
 local function reset()
 	state.presenter = 0; state.slot = 0; votes = {}
 	for _, player in ipairs(Players:GetPlayers()) do
-		Appearance.apply(player.Character, nil, Config.Catalog)
+		Appearance.apply(player.Character, nil, activeCatalog)
 		move(player, World.Lobby, false)
 	end
 	participants = {}; data = {}
@@ -210,6 +215,8 @@ while true do
 	local second = rng:NextInteger(1, #Config.Themes - 1)
 	if second >= first then second += 1 end
 	state.themes = { Config.Themes[first], Config.Themes[second] }; state.round += 1
+	activeCatalog = Mall.generate(rng, activeCatalog, Config.Palette)
+	World.refreshStock(activeCatalog, Garments, openStore)
 	state.phase = "Shopping"
 	for index, player in ipairs(participants) do
 		move(player, World.ShoppingStart * CFrame.new(((index - 1) % 4 - 1.5) * 3, 0, math.floor((index - 1) / 4) * 4), false)
@@ -223,7 +230,7 @@ while true do
 			if player.Parent ~= Players then continue end
 			state.phase = "Showcase"; state.presenter = player.UserId; state.slot = slot; state.showId += 1; votes = {}
 			for _, viewer in ipairs(Players:GetPlayers()) do
-				Appearance.apply(viewer.Character, nil, Config.Catalog)
+				Appearance.apply(viewer.Character, nil, activeCatalog)
 				move(viewer, World.Lobby, false)
 			end
 			displayFor(player)
@@ -245,6 +252,6 @@ while true do
 	end
 	state.results = Rules.rank(entries)
 	state.phase = "Results"; state.presenter = 0; state.slot = 0; votes = {}
-	for _, player in ipairs(Players:GetPlayers()) do Appearance.apply(player.Character, nil, Config.Catalog); move(player, World.Lobby, false) end
+	for _, player in ipairs(Players:GetPlayers()) do Appearance.apply(player.Character, nil, activeCatalog); move(player, World.Lobby, false) end
 	countdown(Config.ResultsSeconds)
 end

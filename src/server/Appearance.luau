@@ -47,7 +47,7 @@ function Appearance.apply(character, look, catalog)
 	if not look or next(look) == nil then return end
 	for p in pairs(snapshot.clothes) do
 		if p.Parent then
-			if p:IsA("Shirt") then p.ShirtTemplate = "" elseif p:IsA("Pants") then p.PantsTemplate = "" else p.Graphic = "" end
+			if p:IsA("Shirt") and look.top then p.ShirtTemplate = "" elseif p:IsA("Pants") and look.bottom then p.PantsTemplate = "" elseif p:IsA("ShirtGraphic") and look.top then p.Graphic = "" end
 		end
 	end
 	local folder = Instance.new("Folder"); folder.Name = "SQOutfit"; folder.Parent = character

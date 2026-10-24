@@ -9,7 +9,7 @@ function Preview.mount(parent, character, item, color)
 	for _, object in ipairs(clone:GetDescendants()) do
 		if object:IsA("Script") or object:IsA("LocalScript") then object:Destroy()
 		elseif object:IsA("BasePart") then object.Anchored = true
-		elseif object:IsA("Shirt") or object:IsA("Pants") or object:IsA("ShirtGraphic") then object:Destroy() end
+		elseif (item.category == "top" and (object:IsA("Shirt") or object:IsA("ShirtGraphic"))) or (item.category == "bottom" and object:IsA("Pants")) then object:Destroy() end
 	end
 	local old = clone:FindFirstChild("SQOutfit"); if old then old:Destroy() end
 	local viewport = Instance.new("ViewportFrame"); viewport.Name = "FittingPreview"

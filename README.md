@@ -1,96 +1,85 @@
-# Królowa Stylu — prototyp multiplayer
+# Królowa Stylu — galeria mody multiplayer
 
-Dwa różne tematy, wspólny budżet 1500 zł, 8 minut zakupów i dwa pokazy każdej osoby. Do rundy losowane jest od 2 do 8 graczy. Osoby dołączające później obserwują i czekają na kolejną rundę.
+Dwa tematy, wspólny budżet 1500 zł i 8 minut na dwie stylizacje. Od 2 do 8 uczestników robi zakupy, prezentuje oba zestawy i ocenia pozostałych w skali 1–10.
 
-## Roblox Studio + Rojo
+## Uruchomienie
 
-1. W folderze repozytorium wykonaj `git pull origin main`.
-2. Użyj Rojo **7.7.1** (wersja w `aftman.toml`). Uruchom `rojo serve` w folderze z `default.project.json`.
-3. Otwórz kopię `Roblox Shopping queen.rbxl` w Studio, połącz wtyczkę Rojo i przejrzyj zmiany synchronizacji. Projekt synchronizuje skrypty, zachowując istniejącą mapę i pozostałe usługi.
-4. Uruchom test serwera z **dwoma klientami** w narzędziach testowych Studio. Przy jednym graczu czekasz w przeszklonym salonie z widokiem na galerię. Do rozpoczęcia zakupów potrzeba dwóch osób.
+1. Zatrzymaj Play w Studio. W folderze repozytorium wykonaj `git pull origin main`.
+2. Uruchom `rojo serve` (Rojo 7.7.1 z `aftman.toml`) lub pozostaw działający serwer. Połącz wtyczkę w Studio i poczekaj na synchronizację.
+3. Otwórz kopię `Roblox Shopping queen.rbxl`. Projekt synchronizuje skrypty, zachowując istniejącą mapę. Budynki powstają po Play.
+4. Uruchom test serwera z **dwoma klientami**. Przy jednej osobie czekasz w zamkniętym, przeszklonym Style Lounge. Dołączający podczas rundy czekają w salonie na następną.
 
-Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **nie importuje mapy z oryginalnego pliku `.rbxl`**. Serwer tworzy zabudowaną galerię 126 × 160 studów: cztery butiki z witrynami, manekinami i wieszakami, pasaż pod szklanym dachem, ławki, rośliny i strefę pokazów. Budynki pojawiają się po Play, nie w trybie edycji. Podłoga znajduje się na wysokości 8 studów nad oryginalną płytą, a powierzchnie butików są oddzielone od posadzki, żeby uniknąć migotania. Zarządza wyłącznie swoim folderem `Workspace.ShoppingQueenPrototype`. Jeśli istniejąca mapa zajmuje ten sam obszar, dostosuj współrzędne w `src/server/World.luau`.
+Alternatywnie `rojo build -o "Ola Roblox.rbxlx"` tworzy miejsce ze skryptami, które generują galerię. Build nie importuje mapy z oryginalnego pliku `.rbxl`. Oryginał pozostaje bez zmian. Zapis i publikacja gry do Roblox należą do właściciela.
 
-## Jak grać
+## Galeria: 20 sklepów
 
-- Poczekalnia to osobny, zamknięty Style Lounge wewnątrz galerii: przez szyby widać pasaż, a wewnątrz są dwie kanapy (6 miejsc siedzących), stolik, magazyny, rośliny i oświetlenie. Nie można wyjść do sklepów przed rundą. Po odliczaniu serwer przenosi wybranych uczestników do pasażu. Pozostali oraz osoby dołączające w trakcie rundy zostają w salonie.
-- Po 15 sekundach lobby runda losuje dwa różne tematy. Budżet jest wspólny dla obu stylizacji i nie ma związku z Robuxami.
-- Podejdź do stoiska i użyj interakcji (E na klawiaturze). Zakupy i przymiarki wymagają bliskości odpowiedniego sklepu. Przymiarka nie zapisuje produktu ani nie pobiera pieniędzy.
-- Wybierz zestaw 1 lub 2. Kupiony produkt dodaj przyciskiem „Wybierz do zestawu”. W garderobie dostępne są wszystkie zakupione produkty; można wykorzystać je w obu zestawach.
-- Zapisz **oba** zestawy. Każdy wymaga góry i dołu. Po zmianie produktu zapisz zestaw ponownie.
-- Po czasie pokazywany jest najpierw pierwszy temat wszystkich osób, potem drugi. Niezapisany zestaw prezentuje bazowego awatara. Każdy pokaz daje 15 sekund na ocenę 1–10. Tylko uczestnicy mogą głosować, raz na pokaz, bez głosowania na siebie.
-- Wynik to średnia z dwóch średnich pokazów. Pokaz bez głosów ma 0 punktów. Remisy dają wspólne miejsca. Głosy osób, które opuściły rundę, nie są liczone w końcowym rankingu.
-- Wyniki są widoczne przez 20 sekund. Następna runda zeruje zakupy i budżet. Brak zapisu między rundami i serwerami.
-- Gdy zostanie mniej niż dwóch uczestników, runda wraca do lobby. Reset postaci nie usuwa zakupów.
+Galeria ma pasaż o wymiarach 126 × 496 studów, 20 oddzielnych lokali, numerowane szyldy, witryny, wybieg oraz poczekalnię. Podłoga jest na wysokości 8 studów nad oryginalną płytą. Generator zarządza wyłącznie `Workspace.ShoppingQueenPrototype`.
 
-## Zakres prototypu
+| Lokale | Specjalizacja |
+| --- | --- |
+| Rose Atelier, Urban Muse, Silk Avenue, Bloom Studio, Atelier Noir, Everyday Edit | Góry ubrań |
+| Studio Denim, Maison Plissé, The Tailor, Hemline | Spodnie i spódnice |
+| Sole Society, City Steps, Velvet Walk | Buty |
+| Bag Stories, Petite Maro | Torebki |
+| Golden Details, Pearl Room | Biżuteria |
+| Hat Gallery, Crown & Co | Nakrycia głowy |
+| Vue Optique | Okulary |
 
-Rose Atelier ma pięć własnych, stylizowanych fasonów 3D: bluzkę, żakiet, gorset i dwie spódnice. Pozostałe produkty nadal używają kolorów części awatara oraz prostych dodatków. Fasony są zbudowane z dopasowanych części i detali; nie są symulacją tkaniny ani ubraniami z katalogu Roblox. Obsługiwane są nazwy części R6/R15; niestandardowe awatary, warstwowe ubrania i nietypowe skale wymagają sprawdzenia w Studio. Galeria ma już budynki, lecz docelowe modele i tekstury ubrań pozostają kolejnym etapem.
+**Oferta jest losowana na początku każdej rundy, nie przy każdym otwarciu sklepu.** Każdy lokal ma trzy produkty z puli sześciu fasonów swojej kategorii, łącznie 60 ofert z 42 wzorów. Serwer losuje także kolory domyślne. Zapewnia co najmniej jeden zmieniony fason w każdym sklepie względem poprzedniej rundy; pojedyncze produkty mogą wracać. Wszyscy gracze widzą tę samą ofertę i ceny. Zakup jednej osoby nie usuwa produktu innym.
 
-Ceny, tematy i czas zmienisz w `src/shared/Config.luau`. Reguły zakupów, zapisów i ocen są w `src/shared/Rules.luau`. Serwer sprawdza budżet, własność produktów, dystans do sklepu, etap rundy i uprawnienia do głosowania. Klient obsługuje UI oraz kamerę.
+Odświeżane są wyłącznie ekspozycje produktów. Budynki, podłoga, poczekalnia i wybieg pozostają na miejscu. Manekiny oraz GUI przedstawiają tę samą aktualną kolekcję. Stary identyfikator wycofanego produktu nie pozwala kupić ani przymierzyć go w nowej rundzie.
 
-## Testy
+## Zakupy i stylizacje
 
-Z interpreterem Luau i Rojo w PATH:
+- Dolny przycisk **Sklepy / moje** otwiera katalog lokali z numerami, specjalizacją i stroną pasażu. Wybierz sklep i „Oferta”, albo podejdź do lady/manekina i użyj E lub przycisku interakcji na telefonie.
+- Zakładka **Ten sklep** pokazuje aktualne trzy produkty. Pozostałe zakładki pozwalają porównać kategorie w całej galerii; karta wskazuje sklep, do którego trzeba podejść. **Moje** zawiera zakupione produkty.
+- **Fason i kolory** otwiera obracany podgląd wybranego produktu na kopii awatara. Dostępnych jest sześć kolorów. Podgląd pokazuje wybrany produkt, nie cały zestaw.
+- **Przymierz na postaci** zakłada produkt dla wszystkich oglądających, ale nie zmienia budżetu ani zapisanego zestawu. Wymaga bliskości właściwego sklepu. **Zakończ przymiarkę** przywraca aktualnie skomponowany zestaw.
+- Kup produkt, dodaj go do zestawu 1 lub 2 i zapisz. Każdy zestaw wymaga góry i dołu. Można osobno nosić buty, nakrycie głowy, torebkę, biżuterię i okulary. Zmiana jednego dodatku nie zastępuje pozostałych kategorii.
+- Ten sam zakup można użyć w obu zestawach, w różnych kolorach. Zmiana koloru jest bezpłatna. Po zmianie wybierz produkt do zestawu i ponownie zapisz zestaw.
+
+Ubrania i dodatki są własnymi stylizowanymi modelami z dopasowanych części, bez wymaganych uploadów assetów. Są wśród nich bluzki, żakiety, gorsety, bluzy, kamizelki, tuniki, różne spódnice/spodnie, buty, torebki, kapelusze, biżuteria i okulary. To nie symulacja tkaniny. Nietypowe ciała, skale i animacje mogą wymagać dopasowania. Lustra są dekoracyjne; podgląd awatara działa w GUI.
+
+## Przebieg rundy
+
+Po 15 sekundach odliczania serwer przenosi uczestników z salonu do pasażu. Po zakupach następuje pierwszy pokaz wszystkich osób, a potem drugi. Niezapisany zestaw pokazuje bazowego awatara. Na ocenę jest 15 sekund; można zagłosować raz, tylko na inną osobę i tylko będąc uczestnikiem.
+
+Wynik to średnia z dwóch średnich pokazów. Pokaz bez głosów ma 0 punktów. Remisy dają wspólne miejsca; głosy osób, które wyszły z rundy, nie są uwzględniane w końcowym rankingu. Wyniki są widoczne przez 20 sekund, potem wszyscy wracają do poczekalni.
+
+Reset postaci zachowuje zakupy w bieżącej rundzie. Wyjście uczestnika powodujące spadek liczby poniżej dwóch przerywa rundę i odsyła pozostałych do salonu. Budżet, garderoba i głosy są zerowane między rundami; brak trwałego zapisu zakupów.
+
+## GUI i przyszły sklep za Robuxy
+
+Menu obejmuje Salon, Sklepy / moje, Butik + i Zasady. Podczas pokazu przycisk sklepów prowadzi do ocen, a po finale do wyników. B otwiera Butik +, M otwiera Salon; okna zamyka się przyciskiem ×.
+
+**Butik + zawiera wyłącznie zapowiedzi dodatków.** Nie ma cen, identyfikatorów płatnych produktów, okien płatności ani przyznawania korzyści. Budżet rundy jest oddzielny od Robuxów. Uruchomienie sprzedaży będzie wymagało osobnego przygotowania produktów w Roblox oraz obsługi uprawnień i potwierdzania zakupów na serwerze.
+
+## Kod i testy
+
+- `src/shared/Mall.luau`: lokale, 42 wzory i losowanie wspólnego asortymentu.
+- `Config.luau`: czas, budżet, tematy i paleta.
+- `Garments.luau`: geometria ekspozycji, podglądu oraz ubrań na postaci.
+- `Rules.luau`: budżet, własność, kolor, zestawy i głosy.
+- `src/server/World.luau`: mapa i wymiana ekspozycji.
+- `src/client/UI.luau` i `init.client.luau`: wygląd i interakcje GUI.
 
 ```sh
 luau tests/rules.luau
 luau tests/ui_state.luau
+luau tests/mall.luau
 python tests/check_world.py
 rojo build -o "Ola Roblox.rbxlx"
 ```
 
-Testy reguł sprawdzają brak środków, ponowne zakupy, niezależność zestawów, zapis, nieprawidłowe i własne głosy, obserwatorów, wyjście gracza i remisy. Test `check_world.py` wymaga Pythona 3 oraz interpretera `luau` w PATH (lub zmiennej `LUAU_BIN`). Uruchamia generator mapy z uproszczonymi obiektami silnika i sprawdza cztery interakcje sklepów, przejście od pasażu do lad, rozdzielenie podłóg i zachowanie istniejącej mapy, zamknięcie salonu z każdej strony, przezroczystość okien, sześć siedzeń oraz wolne miejsce odradzania. Nie sprawdza renderowania ani fizyki Roblox i nie zastępuje testu multiplayer w Studio.
+`check_world.py` wymaga Pythona 3 oraz `luau` w PATH lub zmiennej `LUAU_BIN`. Sprawdza generator mapy na uproszczonych obiektach silnika: wejścia do 20 sklepów, 60 interakcji produktów, podłogi, zamknięty salon i odświeżanie ekspozycji. Buduje też wszystkie 42 wzory na modelach zastępczych R6/R15. Nie sprawdza renderowania, fizyki ani animacji prawdziwych awatarów. Fixture w `tests/fixtures/Catalog.luau` służy wyłącznie testom reguł; nie jest ofertą gry.
 
 ### Kontrola ręczna w Studio
 
-Do szybkiego testu tymczasowo zmniejsz `ShoppingSeconds` i `VotingSeconds`, a potem przywróć wartości:
+1. Na jednym kliencie sprawdź salon, okna, siedzenie i brak możliwości wyjścia. Na dwóch klientach sprawdź przeniesienie do galerii po odliczaniu, także po siedzeniu na kanapie.
+2. Sprawdź 20 lokali i katalog GUI. Oba klienty muszą widzieć te same produkty, ceny i ekspozycje. Zakup z daleka lub w niewłaściwym sklepie ma być odrzucony.
+3. Przetestuj przymiarkę, zmianę koloru, cofnięcie przymiarki, zakup i dwie zapisane stylizacje. Sprawdź łączne noszenie torby, biżuterii, okularów i kapelusza oraz reset postaci.
+4. Przejdź pełną rundę. Następna ma zmienić ofertę każdego sklepu i wyzerować zakupy; na wystawach nie mogą pozostać stare manekiny ani podwójne interakcje.
+5. Sprawdź oba pokazy, kamerę, własne/powtórne głosy, ranking, wyjście uczestnika i dołączenie obserwatora w trakcie.
+6. Sprawdź klatkaż całej galerii, awatary R6/R15, chodzenie w ubraniach oraz GUI i dotyk w emulatorze telefonu.
 
-1. Uruchom jeden klient: postać ma pojawić się w Style Lounge. Sprawdź widok na galerię przez okna, siedzenie na kanapie, zamknięte drzwi, próby skakania nad ścianami i reset postaci. Postać ma pozostać w salonie, a runda nie może ruszyć.
-2. Uruchom drugi klient i podczas odliczania usiądź na kanapie. Po starcie zakupów obie postacie mają znaleźć się w pasażu, bez przyciągania kanapy. Sprawdź jednakowe tematy i budżety, wejścia do butików i brak migotania podłogi. Reset postaci podczas zakupów ma odrodzić uczestnika w pasażu.
-3. Przymierz produkt: budżet i zestawy nie powinny się zmienić. Kup: budżet spada tylko raz. Zakup z daleka lub bez środków ma być odrzucony.
-4. Zapisz dwa różne zestawy. Sprawdź odrzucenie zapisu bez góry/dołu oraz konieczność ponownego zapisu po zmianie. Zresetuj postać i sprawdź zachowanie garderoby.
-5. Sprawdź oba pokazy każdej osoby, kamerę i oceny. Nie można oceniać siebie ani głosować ponownie. Porównaj ranking z oddanymi ocenami.
-6. Dołącz trzecim klientem podczas zakupów: ma zostać w zamkniętym salonie bez zakupów i głosowania. Wyjdź jednym z dwóch uczestników: gra ma wrócić do salonu, odblokować postać i przywrócić kamerę.
-7. Sprawdź kolejną rundę, powrót do salonu po wynikach, reset stanu, UI w emulatorze telefonu i awatary R6/R15.
-
-`Roblox Shopping queen.rbxl` pozostaje oryginałem. Rojo zmienia otwarty projekt Studio; zapis i publikacja gry do Roblox należą do właściciela.
-
-Po pobraniu aktualizacji zatrzymaj Play przyciskiem Stop, poczekaj na synchronizację Rojo i dopiero uruchom Play ponownie. Moduły generujące mapę nie przebudują jej w już trwającym teście.
-
-Salon pozostaje fizycznie zamknięty także podczas zakupów, aby obserwatorzy nie mogli wyjść za uczestnikami. Oprócz kolizji ścian serwer co 0,5 sekundy sprawdza obszar oczekiwania. Aktywni uczestnicy zakupów i aktualny prezenter mają odpowiednio dostęp do pasażu i wybiegu. Reset oraz upadek postaci nie omijają poczekalni.
-
-## Interfejs i Butik +
-
-Interfejs ma kremową paletę z różowymi i złotymi akcentami: kompaktowy panel rundy z tematami, zegarem, paskiem czasu i budżetem, dolne menu oraz przewijane karty. Układ dostosowuje szerokość do okna i korzysta z obszaru bezpiecznego Roblox. Nie ukrywa systemowego menu ani sterowania.
-
-- **Salon** — powitanie, informacje o poczekalni i przejście do zapowiedzi dodatków.
-- **Stylizacje** — garderoba i zakupy za złotówki rundy; w czasie pokazu ten przycisk prowadzi do ocen, a po finale do wyników.
-- **Butik +** — osobna kolekcja przyszłych dodatków za Robuxy: VIP Style, Rose Aura, Runway Poses i Golden Entrance. Karty i szczegóły są wyłącznie zapowiedziami, bez ceny i bez możliwości zapłaty. Nie pojawia się okno płatności, nie ma produktu do odebrania ani nadawania korzyści.
-- **Zasady** — instrukcja rozgrywki. Na klawiaturze B otwiera Butik +, M otwiera Salon. Każde okno można zamknąć przyciskiem ×.
-
-Zapowiedzi edytuje się w `src/shared/PremiumCatalog.luau`; wygląd elementów w `src/client/UI.luau`. Kod nie zawiera identyfikatorów płatnych produktów ani obsługi MarketplaceService. Uruchomienie sprzedaży będzie osobnym zadaniem: trzeba zdefiniować produkty/passy w Roblox, pobierać rzeczywiste ceny i bezpiecznie potwierdzać uprawnienia oraz przyznawanie zakupów na serwerze. Budżet rundy pozostaje oddzielny od Robuxów.
-
-`tests/ui_state.luau` sprawdza przełączanie ekranów: aktualizacje budżetu nie zamykają Butiku +, otwarcie lady prowadzi do garderoby tylko uczestnika, a nowy pokaz otwiera ocenianie. Testy te nie sprawdzają wyglądu w silniku Roblox.
-
-### Kontrola GUI w Studio
-
-1. Po Stop → synchronizacja Rojo → Play sprawdź HUD, powitanie i cztery pozycje menu. Otwórz każdą stronę, przewiń ją, użyj ×, M i B.
-2. W Butiku + otwórz szczegóły każdej karty, wróć do kolekcji i potwierdź brak płatności, zmiany budżetu oraz przyznania przedmiotów.
-3. Na dwóch klientach przetestuj zakup za złotówki, zmianę zestawu, zapis, oceny 1–10 i wyniki. Panel ocen powinien pozostawić widoczny wybieg; własne i powtórne głosy pozostają blokowane przez serwer.
-4. Podczas oczekiwania w Butiku + sprawdź przejście do nowego pokazu. Po zamknięciu ocen można je ponownie otworzyć dolnym przyciskiem. Reset postaci nie powinien usuwać GUI.
-5. W emulatorze telefonu sprawdź pion i poziom, przewijanie kart, wszystkie przyciski i widoczność interfejsu przy systemowych kontrolkach. Renderowanie, dotyk i obsługa kamery wymagają testu w Studio; build CLI ich nie zastępuje.
-
-## Rose Atelier: fasony i kolory
-
-Po rozpoczęciu rundy wejdź do **Rose Atelier**, pierwszego butiku po lewej stronie pasażu. Wybierz manekin przyciskiem E albo otwórz ofertę przy ladzie. Zakładka **Atelier** zawiera całą pięcioelementową kolekcję, w tym spódnice sprzedawane w tym sklepie. Przymierzalnia ma zasłony i dekoracyjne lustro; właściwy podgląd postaci jest w panelu GUI.
-
-1. Wybierz zestaw 1 lub 2, a na karcie produktu kliknij **Fason i kolory**.
-2. Obróć podgląd strzałkami i wybierz róż, czerń, ecru, błękit, złoto albo szałwię. Podgląd pokazuje wybrany fason, nie cały zapisany zestaw.
-3. **Przymierz na postaci** nakłada wybrany fason i kolor na postać widoczną innym graczom. Wymaga bliskości odpowiedniego butiku i nie zmienia budżetu ani zestawu.
-4. Kup produkt, wybierz go do zestawu i zapisz zestaw. Kolory można zmieniać bez ponownego kupowania; każdy zestaw ma własny wybór koloru. Po zmianie ponownie wybierz produkt do zestawu i zapisz.
-5. **Zakończ przymiarkę** przywraca aktualnie skomponowany zestaw. Przymierzony, ale niewybrany produkt nie trafia do pokazu.
-
-Modele w `src/shared/Garments.luau` są wspólne dla ekspozycji sklepu, podglądu i ubrań postaci. Paleta oraz fasony znajdują się w `Config.luau`. Serwer sprawdza kolor, własność, budżet i miejsce zakupów. Przymiarka kopiuje zestaw wraz z kolorami, więc nie może zmienić zapisu drugiej stylizacji. Kolory są stanem rundy, bez trwałego zapisu między sesjami.
-
-Test w Studio: sprawdź pięć manekinów, obracanie podglądu, każdy kolor, brak pobrania środków za przymiarkę, powrót do zestawu, dwa kolory tego samego ubrania w dwóch zestawach, reset postaci i oba pokazy. Sprawdź R6 oraz R15 i różne skale awatara — części ubrań poruszają się ze swoim punktem mocowania, więc przy animacjach oraz nietypowych ciałach mogą wymagać dalszego dopasowania. Lustro nie renderuje odbicia postaci. Zakupy nadal wymagają aktywnej rundy od dwóch osób; poczekalnia pozostaje zamknięta.
+Po aktualizacji zatrzymaj Play, poczekaj na Rojo i uruchom Play ponownie. Zmieniony generator nie przebuduje trwającej już sesji testowej automatycznie.

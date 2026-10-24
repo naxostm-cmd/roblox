@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(shared:WaitForChild("Config"))
+local Mall = require(shared:WaitForChild("Mall"))
 local Access = require(shared:WaitForChild("Access"))
 local Premium = require(shared:WaitForChild("PremiumCatalog"))
 local UiState = require(shared:WaitForChild("UiState"))
@@ -17,13 +18,14 @@ local gui = Instance.new("ScreenGui"); gui.Name = "ShoppingQueenUI"; gui.ResetOn
 -- Respect Roblox's safe area, top bar and device cut-outs.
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; gui.DisplayOrder = 10; gui.Parent = player:WaitForChild("PlayerGui")
 local root = UI.frame(gui, "SafeArea", UDim2.fromScale(1, 1), nil, C.Paper, 0); root.BackgroundTransparency = 1
-local state, slot, category = nil, 1, "atelier"
-local fittingItem = "rose_top"
+local state, slot, category = nil, 1, "store"
+local currentStore = "rose"
+local fittingItem = nil
 local chosenColors = { {}, {} }
 local view, opened, detail = "home", false, nil
 local modalWidth, short = 800, false
 local render, adapt
-local categories = { { "atelier", "Atelier" }, { "top", "Góra" }, { "bottom", "Dół" }, { "shoes", "Buty" }, { "accessory", "Dodatki" }, { "owned", "Moje" } }
+local categories = { {"store","Ten sklep"}, {"top","Góry"}, {"bottom","Doły"}, {"shoes","Buty"}, {"accessory","Czapki"}, {"bag","Torebki"}, {"jewelry","Biżuteria"}, {"glasses","Okulary"}, {"owned","Moje"} }
 local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Shopping = "Czas na zakupy", Showcase = "Światła, wybieg!", Results = "Wyniki odcinka" }
 
 local hud = UI.frame(root, "RoundHUD", UDim2.fromOffset(760, 124), UDim2.new(0.5, 0, 0, 10), C.Paper, 18)
@@ -78,7 +80,7 @@ UI.button(modal, "×", UDim2.fromOffset(34, 34), UDim2.new(1, -48, 0, 14), funct
 for i, entry in ipairs({ { "home", "SALON" }, { "wardrobe", "STYLIZACJE" }, { "premium", "BUTIK +" }, { "help", "ZASADY" } }) do
  local page = entry[1]
  local b = UI.button(dock, entry[2], UDim2.new(0.25, -10, 0, 38), UDim2.new((i - 1) * 0.25, 5, 0, 7), function()
-  if page == "wardrobe" and state and (state.phase == "Showcase" or state.phase == "Results") then openPage("round") else openPage(page) end
+  if page == "wardrobe" and state and (state.phase == "Showcase" or state.phase == "Results") then openPage("round") elseif page == "wardrobe" then openPage("directory") else openPage(page) end
  end, if page == "premium" then nil else "light")
  local indicator = UI.frame(dock, "Selected", UDim2.new(0.25, -30, 0, 2), UDim2.new((i - 1) * 0.25, 15, 1, -5), C.Rose, 2)
  navEntries[page] = { button = b, indicator = indicator }
@@ -92,7 +94,7 @@ local function paletteColor(key)
 end
 local function act(action, id)
  local color
- for _, item in ipairs(Config.Catalog) do if item.id == id then color = colorKey(item) end end
+ for _, item in ipairs((state and state.catalog or {})) do if item.id == id then color = colorKey(item) end end
  request:FireServer(action, { slot = slot, id = id, color = color })
 end
 local order = 0
@@ -163,9 +165,23 @@ local function premiumPage()
   end
  end
 end
+local function directoryPage()
+ heading.Text = "Galeria / 20 sklepów"; subtitle.Text = "NOWA KOLEKCJA W KAŻDEJ RUNDZIE • WSPÓLNA OFERTA DLA WSZYSTKICH"
+ info("Znajdź swój butik", "Numery lokali są na szyldach. Oferta zmienia się na początku rundy. Wybierz lokal, obejrzyj produkty i podejdź do niego, żeby kupować.", 95)
+ for _, store in ipairs(Mall.Stores) do
+  local card = block(94)
+  UI.text(card, string.format("%02d / %s", store.number, store.name), UDim2.new(1,-24,0,25), UDim2.fromOffset(12,8), 17,C.Ink,true)
+  UI.text(card, store.specialty .. " • " .. (if store.x < 0 then "lewa strona" else "prawa strona"), UDim2.new(0.65,-20,0,40), UDim2.fromOffset(12,40),12,C.Muted)
+  UI.button(card,"Oferta →",UDim2.new(0.35,-12,0,36),UDim2.new(0.65,0,0,46),function()
+   currentStore = store.id; category = "store"; view = "wardrobe"
+   for _, item in ipairs(state and state.catalog or {}) do if item.store == store.id then fittingItem = item.id; break end end
+   render()
+  end,"light")
+ end
+end
 local function wardrobePage()
  if not state or not Access.canBrowse(state.phase, state.participating) then loungePage(); return end
- heading.Text = if category == "atelier" then "Rose Atelier" else "Twoja garderoba"; subtitle.Text = "BUDŻET RUNDY: " .. state.budget .. " ZŁ • ZAPISZ OBIE STYLIZACJE"
+ heading.Text = if category == "store" then (Mall.store(currentStore).name) else "Twoja garderoba"; subtitle.Text = "BUDŻET RUNDY: " .. state.budget .. " ZŁ • ZAPISZ OBIE STYLIZACJE"
  local slots = block(46); slots.BackgroundTransparency = 1
  for index = 1, 2 do
   local chosen = index
@@ -175,13 +191,14 @@ local function wardrobePage()
  local summary = block(60, C.Blush)
  UI.text(summary, chosenTheme, UDim2.new(0.62, -22, 1, -8), UDim2.fromOffset(12, 4), 15, C.Rose, true)
  UI.button(summary, "Zapisz zestaw " .. slot, UDim2.new(0.38, -10, 0, 40), UDim2.new(0.62, 0, 0, 10), function() act("Save") end)
- local tabs = block(36); tabs.BackgroundTransparency = 1
+ local tabColumns = if modalWidth >= 620 then 4 else 3
+ local tabs = block(math.ceil(#categories / tabColumns)*38); tabs.BackgroundTransparency = 1
  for index, pair in ipairs(categories) do
   local chosenCategory = pair[1]
-  UI.button(tabs, pair[2], UDim2.new(1 / #categories, -4, 0, 34), UDim2.fromScale((index - 1) / #categories, 0), function() category = chosenCategory; render() end, if category == pair[1] then nil else "light")
+  UI.button(tabs, pair[2], UDim2.new(1 / tabColumns, -4, 0, 34), UDim2.new(((index-1)%tabColumns)/tabColumns,0,0,math.floor((index-1)/tabColumns)*38), function() category = chosenCategory; render() end, if category == pair[1] then nil else "light")
  end
  local previewItem
- for _, item in ipairs(Config.Catalog) do if item.id == fittingItem then previewItem = item end end
+ for _, item in ipairs((state and state.catalog or {})) do if item.id == fittingItem then previewItem = item end end
  if previewItem and previewItem.style then
   local fitting = block(280, C.Blush)
   local pane = UI.frame(fitting, "AvatarPreview", UDim2.new(0.5, -16, 1, -16), UDim2.fromOffset(8, 8), C.Paper, 12)
@@ -204,8 +221,8 @@ local function wardrobePage()
   UI.button(fitting, "Zakończ przymiarkę", UDim2.new(0.5, -12, 0, 30), UDim2.new(0.5, 0, 0, 238), function() act("Slot") end, "light")
  end
  local count = 0
- for _, item in ipairs(Config.Catalog) do
-  if category ~= item.category and not (category == "owned" and state.owned[item.id]) and not (category == "atelier" and item.store == "top") then continue end
+ for _, item in ipairs((state and state.catalog or {})) do
+  if category ~= item.category and not (category == "owned" and state.owned[item.id]) and not (category == "store" and item.store == currentStore) then continue end
   count += 1
   local id = item.id
   local selected, owned = state.looks[slot][item.category] == id, state.owned[id]
@@ -213,7 +230,7 @@ local function wardrobePage()
   local swatch = UI.frame(card, "Swatch", UDim2.fromOffset(40, 40), UDim2.fromOffset(12, 12), if item.style then paletteColor(colorKey(item)) else Color3.fromRGB(table.unpack(item.color)), 10)
   UI.gradient(swatch, swatch.BackgroundColor3, swatch.BackgroundColor3:Lerp(C.White, 0.3))
   UI.text(card, item.name, UDim2.new(1, -76, 0, 24), UDim2.fromOffset(64, 10), 16, C.Ink, true)
-  UI.text(card, if selected then "W TWOIM ZESTAWIE" elseif owned then "W TWOJEJ GARDEROBIE" else item.price .. " zł / budżet rundy", UDim2.new(1, -76, 0, 22), UDim2.fromOffset(64, 34), 11, if owned then C.Green else C.Muted)
+  UI.text(card, if selected then "W TWOIM ZESTAWIE" elseif owned then "W TWOJEJ GARDEROBIE" else item.price .. " zł / " .. (Mall.store(item.store).name), UDim2.new(1, -76, 0, 22), UDim2.fromOffset(64, 34), 11, if owned then C.Green else C.Muted)
   if item.style then
    UI.button(card, "Fason i kolory →", UDim2.new(1, -24, 0, 32), UDim2.fromOffset(12, 126), function() fittingItem = item.id; content.CanvasPosition = Vector2.zero; render() end, "light")
   end
@@ -263,8 +280,8 @@ render = function()
  adapt()
  modal.Visible = opened; shade.Visible = opened and not (view == "round" and state and state.phase == "Showcase")
  welcome.Visible = not opened and state ~= nil and (state.phase == "Lobby" or state.phase == "Intermission") and not short
- for page, entry in pairs(navEntries) do entry.indicator.Visible = opened and (view == page or (page == "wardrobe" and view == "round")) end
- navEntries.wardrobe.button.Text = if state and (state.phase == "Showcase" or state.phase == "Results") then "POKAZ / OCENY" else "STYLIZACJE"
+ for page, entry in pairs(navEntries) do entry.indicator.Visible = opened and (view == page or (page == "wardrobe" and (view == "round" or view == "directory"))) end
+ navEntries.wardrobe.button.Text = if state and (state.phase == "Showcase" or state.phase == "Results") then "POKAZ / OCENY" else "SKLEPY / MOJE"
  if state then
   local phase = phases[state.phase] or state.phase
   phaseLabel.Text = phase .. (if short and state.participating then " / " .. state.budget .. " zł" else "")
@@ -280,6 +297,7 @@ render = function()
  UI.clear(content); order = 0
  if view == "premium" then premiumPage()
  elseif view == "wardrobe" then wardrobePage()
+ elseif view == "directory" then directoryPage()
  elseif view == "help" then helpPage()
  elseif view == "round" then roundPage()
  else loungePage() end
@@ -333,8 +351,17 @@ update.OnClientEvent:Connect(function(packet)
  view, opened = UiState.receive(previous, packet, view, opened)
  state = packet
  if packet.fittingItem then fittingItem = packet.fittingItem end
- if packet.store then category = if packet.store == "top" then "atelier" else packet.store end
- if not previous or previous.round ~= packet.round then slot = 1; chosenColors = { {}, {} } end
+ if packet.store then
+  currentStore = packet.store; category = "store"
+  if not packet.fittingItem then for _, item in ipairs(packet.catalog) do if item.store == currentStore then fittingItem = item.id; break end end end
+ end
+ if not previous or previous.round ~= packet.round then
+  slot = 1; chosenColors = { {}, {} }
+  if not packet.fittingItem then
+   fittingItem = packet.catalog[1] and packet.catalog[1].id
+   for _, item in ipairs(packet.catalog) do if item.store == currentStore then fittingItem = item.id; break end end
+  end
+ end
  if packet.message then message(packet.message) end
  if packet.phase == "Shopping" and (not previous or previous.phase ~= "Shopping") and packet.participating then
   message("Twój moment! Wejdź do butików, kup produkty i zapisz dwa zestawy.")
