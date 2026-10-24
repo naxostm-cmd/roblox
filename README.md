@@ -35,6 +35,7 @@ Z interpreterem Luau i Rojo w PATH:
 
 ```sh
 luau tests/rules.luau
+luau tests/ui_state.luau
 python tests/check_world.py
 rojo build -o "Ola Roblox.rbxlx"
 ```
@@ -58,3 +59,24 @@ Do szybkiego testu tymczasowo zmniejsz `ShoppingSeconds` i `VotingSeconds`, a po
 Po pobraniu aktualizacji zatrzymaj Play przyciskiem Stop, poczekaj na synchronizację Rojo i dopiero uruchom Play ponownie. Moduły generujące mapę nie przebudują jej w już trwającym teście.
 
 Salon pozostaje fizycznie zamknięty także podczas zakupów, aby obserwatorzy nie mogli wyjść za uczestnikami. Oprócz kolizji ścian serwer co 0,5 sekundy sprawdza obszar oczekiwania. Aktywni uczestnicy zakupów i aktualny prezenter mają odpowiednio dostęp do pasażu i wybiegu. Reset oraz upadek postaci nie omijają poczekalni.
+
+## Interfejs i Butik +
+
+Interfejs ma kremową paletę z różowymi i złotymi akcentami: kompaktowy panel rundy z tematami, zegarem, paskiem czasu i budżetem, dolne menu oraz przewijane karty. Układ dostosowuje szerokość do okna i korzysta z obszaru bezpiecznego Roblox. Nie ukrywa systemowego menu ani sterowania.
+
+- **Salon** — powitanie, informacje o poczekalni i przejście do zapowiedzi dodatków.
+- **Stylizacje** — garderoba i zakupy za złotówki rundy; w czasie pokazu ten przycisk prowadzi do ocen, a po finale do wyników.
+- **Butik +** — osobna kolekcja przyszłych dodatków za Robuxy: VIP Style, Rose Aura, Runway Poses i Golden Entrance. Karty i szczegóły są wyłącznie zapowiedziami, bez ceny i bez możliwości zapłaty. Nie pojawia się okno płatności, nie ma produktu do odebrania ani nadawania korzyści.
+- **Zasady** — instrukcja rozgrywki. Na klawiaturze B otwiera Butik +, M otwiera Salon. Każde okno można zamknąć przyciskiem ×.
+
+Zapowiedzi edytuje się w `src/shared/PremiumCatalog.luau`; wygląd elementów w `src/client/UI.luau`. Kod nie zawiera identyfikatorów płatnych produktów ani obsługi MarketplaceService. Uruchomienie sprzedaży będzie osobnym zadaniem: trzeba zdefiniować produkty/passy w Roblox, pobierać rzeczywiste ceny i bezpiecznie potwierdzać uprawnienia oraz przyznawanie zakupów na serwerze. Budżet rundy pozostaje oddzielny od Robuxów.
+
+`tests/ui_state.luau` sprawdza przełączanie ekranów: aktualizacje budżetu nie zamykają Butiku +, otwarcie lady prowadzi do garderoby tylko uczestnika, a nowy pokaz otwiera ocenianie. Testy te nie sprawdzają wyglądu w silniku Roblox.
+
+### Kontrola GUI w Studio
+
+1. Po Stop → synchronizacja Rojo → Play sprawdź HUD, powitanie i cztery pozycje menu. Otwórz każdą stronę, przewiń ją, użyj ×, M i B.
+2. W Butiku + otwórz szczegóły każdej karty, wróć do kolekcji i potwierdź brak płatności, zmiany budżetu oraz przyznania przedmiotów.
+3. Na dwóch klientach przetestuj zakup za złotówki, zmianę zestawu, zapis, oceny 1–10 i wyniki. Panel ocen powinien pozostawić widoczny wybieg; własne i powtórne głosy pozostają blokowane przez serwer.
+4. Podczas oczekiwania w Butiku + sprawdź przejście do nowego pokazu. Po zamknięciu ocen można je ponownie otworzyć dolnym przyciskiem. Reset postaci nie powinien usuwać GUI.
+5. W emulatorze telefonu sprawdź pion i poziom, przewijanie kart, wszystkie przyciski i widoczność interfejsu przy systemowych kontrolkach. Renderowanie, dotyk i obsługa kamery wymagają testu w Studio; build CLI ich nie zastępuje.
