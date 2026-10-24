@@ -17,10 +17,16 @@ for _, shop in ipairs(shops) do
  World.StorePositions[shop.category] = Vector3.new(shop.x, FLOOR + 3, shop.z)
 end
 World.Stage = CFrame.new(0, FLOOR + 5, -48) * CFrame.Angles(0, math.pi, 0)
-World.Lobby = CFrame.new(0, FLOOR + 4, 66)
+World.Lobby = CFrame.new(0, FLOOR + 4, 78)
+World.ShoppingStart = CFrame.new(0, FLOOR + 4, 48)
 
-local function part(parent, name, size, position, color, material)
- local p = Instance.new("Part")
+function World.isInsideLobby(position)
+ return math.abs(position.X) <= 16.5 and position.Z >= 62.5 and position.Z <= 85.5
+  and position.Y >= FLOOR + 0.5 and position.Y <= FLOOR + 15.5
+end
+
+local function part(parent, name, size, position, color, material, className)
+ local p = Instance.new(className or "Part")
  p.Name = name; p.Size = size; p.CFrame = CFrame.new(position); p.Color = color; p.Anchored = true
  p.Material = material or Enum.Material.SmoothPlastic
  p.TopSurface = Enum.SurfaceType.Smooth; p.BottomSurface = Enum.SurfaceType.Smooth
@@ -94,6 +100,57 @@ local function buildShop(parent, shop, onStore)
  prompt.Triggered:Connect(function(player) onStore(player, shop.category) end)
 end
 
+local function buildLounge(parent)
+ local room = Instance.new("Model"); room.Name = "WaitingLounge"; room.Parent = parent
+ part(room, "LoungeFloor", Vector3.new(34, 0.18, 24), Vector3.new(0, FLOOR + 0.31, 74), cream, Enum.Material.Marble)
+ part(room, "LoungeRug", Vector3.new(21, 0.08, 16), Vector3.new(0, FLOOR + 0.45, 74), Color3.fromRGB(218, 166, 182), Enum.Material.Fabric)
+ part(room, "LoungeBackWall", Vector3.new(34, 16, 0.5), Vector3.new(0, FLOOR + 8, 86), cream)
+ local roof = part(room, "LoungeCeiling", Vector3.new(34.5, 0.5, 24.5), Vector3.new(0, FLOOR + 16.1, 74), cream)
+ roof.CastShadow = false
+ for _, side in ipairs({ -1, 1 }) do
+  local wall = part(room, "LoungeSideGlass", Vector3.new(0.5, 16, 24), Vector3.new(side * 17, FLOOR + 8, 74), glass, Enum.Material.Glass)
+  wall.Transparency = 0.75; wall.CastShadow = false
+  local front = part(room, "LoungeFrontGlass", Vector3.new(13, 16, 0.5), Vector3.new(side * 10.5, FLOOR + 8, 62), glass, Enum.Material.Glass)
+  front.Transparency = 0.8; front.CastShadow = false
+  for _, z in ipairs({ 62, 74, 86 }) do
+   part(room, "LoungeWindowMullion", Vector3.new(0.6, 16, 0.6), Vector3.new(side * 17, FLOOR + 8, z), gold, Enum.Material.Metal)
+  end
+  part(room, "DoorFrame", Vector3.new(0.35, 16, 0.7), Vector3.new(side * 4, FLOOR + 8, 62), gold, Enum.Material.Metal)
+  -- Two three-seat sofas, turned towards the coffee table.
+  part(room, "SofaBase", Vector3.new(4.5, 1, 11), Vector3.new(side * 12.5, FLOOR + 1.1, 73), pink, Enum.Material.Fabric)
+  part(room, "SofaBack", Vector3.new(0.8, 3.5, 11), Vector3.new(side * 14.5, FLOOR + 2.8, 73), pink, Enum.Material.Fabric)
+  for _, z in ipairs({ 67.5, 78.5 }) do
+   part(room, "SofaArm", Vector3.new(4.5, 1.3, 0.8), Vector3.new(side * 12.5, FLOOR + 2.3, z), pink, Enum.Material.Fabric)
+  end
+  for z = 69.5, 76.5, 3.5 do
+   local seat = part(room, "LoungeSeat", Vector3.new(3, 0.5, 3), Vector3.new(side * 12, FLOOR + 1.9, z), Color3.fromRGB(226, 161, 183), Enum.Material.Fabric, "Seat")
+   seat.CFrame *= CFrame.Angles(0, side * math.pi / 2, 0)
+  end
+  plant(room, side * 13.5, 82.5)
+  part(room, "LoungeCeilingStrip", Vector3.new(0.2, 0.15, 22), Vector3.new(side * 15.5, FLOOR + 15.8, 74), gold, Enum.Material.Neon)
+ end
+ -- Permanently closed: participants are moved into the mall by the server.
+ -- Opening a shared door would also let waiting spectators escape.
+ local door = part(room, "LockedLobbyDoor", Vector3.new(8, 16, 0.5), Vector3.new(0, FLOOR + 8, 62), glass, Enum.Material.Glass)
+ door.Transparency = 0.65; door.CastShadow = false
+ for _, side in ipairs({ -1, 1 }) do
+  part(room, "DoorHandle", Vector3.new(0.18, 2, 0.2), Vector3.new(side * 0.65, FLOOR + 4.5, 62.4), gold, Enum.Material.Metal)
+ end
+ sign(room, "DoorNotice", "WEJŚCIE DO GALERII\nPrzeniesiemy Cię po rozpoczęciu rundy", Vector3.new(15, 2.5, 0.2), CFrame.new(0, FLOOR + 12, 62.5) * CFrame.Angles(0, math.pi, 0), dark, gold)
+ sign(room, "LoungeTitle", "STYLE LOUNGE\nPOCZEKALNIA KRÓLOWEJ STYLU", Vector3.new(23, 4.5, 0.3), CFrame.new(0, FLOOR + 11, 85.6), dark, gold)
+ sign(room, "RoundInstructions", "2 TEMATY • 1500 ZŁ • 8 MINUT\nRozsiądź się i poczekaj na pozostałych!", Vector3.new(18, 2.5, 0.25), CFrame.new(0, FLOOR + 6.7, 85.5), cream, dark)
+ part(room, "CoffeeTable", Vector3.new(7, 0.35, 4), Vector3.new(0, FLOOR + 2.3, 71), cream, Enum.Material.Marble)
+ for _, side in ipairs({ -1, 1 }) do
+  part(room, "TableLeg", Vector3.new(0.4, 1.8, 3), Vector3.new(side * 2.7, FLOOR + 1.3, 71), gold, Enum.Material.Metal)
+ end
+ for i = 1, 3 do
+  part(room, "FashionMagazine", Vector3.new(1.1, 0.08, 1.5), Vector3.new(-2 + i, FLOOR + 2.55 + i * 0.08, 71), if i == 2 then pink else gold)
+ end
+ local lamp = part(room, "LoungeChandelier", Vector3.new(6, 0.35, 3), Vector3.new(0, FLOOR + 14, 74), cream, Enum.Material.Neon)
+ local light = Instance.new("PointLight"); light.Color = cream; light.Range = 23; light.Brightness = 1; light.Parent = lamp
+ part(room, "ChandelierStem", Vector3.new(0.25, 2, 0.25), Vector3.new(0, FLOOR + 15, 74), gold, Enum.Material.Metal)
+end
+
 function World.create(onStore)
  local old = workspace:FindFirstChild("ShoppingQueenPrototype")
  if old then old:Destroy() end
@@ -138,10 +195,11 @@ function World.create(onStore)
  end
  -- The visible starting point belongs to this gallery, not the old baseplate.
  local spawn = Instance.new("SpawnLocation"); spawn.Name = "GallerySpawn"; spawn.Size = Vector3.new(8, 0.2, 8)
- spawn.Position = Vector3.new(0, FLOOR + 0.25, 66); spawn.Anchored = true; spawn.Neutral = true; spawn.Duration = 0
+ spawn.Position = Vector3.new(0, FLOOR + 0.52, 78); spawn.Anchored = true; spawn.Neutral = true; spawn.Duration = 0
+ spawn.Transparency = 1; spawn.CanCollide = false
  spawn.Material = Enum.Material.Marble; spawn.Color = pink; spawn.Parent = mall
  local decal = spawn:FindFirstChildOfClass("Decal"); if decal then decal:Destroy() end
- sign(mall, "Welcome", "KRÓLOWA STYLU\n2 TEMATY • 1500 ZŁ • TWÓJ STYL", Vector3.new(28, 6, 0.5), CFrame.new(0, FLOOR + 10, 84), dark, gold)
+ buildLounge(mall)
  -- Return constants too, so all clients use the same stage coordinates.
  return mall
 end

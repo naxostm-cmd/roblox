@@ -7,13 +7,13 @@ Dwa różne tematy, wspólny budżet 1500 zł, 8 minut zakupów i dwa pokazy ka�
 1. W folderze repozytorium wykonaj `git pull origin main`.
 2. Użyj Rojo **7.7.1** (wersja w `aftman.toml`). Uruchom `rojo serve` w folderze z `default.project.json`.
 3. Otwórz kopię `Roblox Shopping queen.rbxl` w Studio, połącz wtyczkę Rojo i przejrzyj zmiany synchronizacji. Projekt synchronizuje skrypty, zachowując istniejącą mapę i pozostałe usługi.
-4. Uruchom test serwera z **dwoma klientami** w narzędziach testowych Studio. Samemu możesz zwiedzać galerię, otwierać sklepy i przymierzać produkty. Rywalizacja i zakupy za budżet wymagają dwóch osób.
+4. Uruchom test serwera z **dwoma klientami** w narzędziach testowych Studio. Przy jednym graczu czekasz w przeszklonym salonie z widokiem na galerię. Do rozpoczęcia zakupów potrzeba dwóch osób.
 
 Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **nie importuje mapy z oryginalnego pliku `.rbxl`**. Serwer tworzy zabudowaną galerię 126 × 160 studów: cztery butiki z witrynami, manekinami i wieszakami, pasaż pod szklanym dachem, ławki, rośliny i strefę pokazów. Budynki pojawiają się po Play, nie w trybie edycji. Podłoga znajduje się na wysokości 8 studów nad oryginalną płytą, a powierzchnie butików są oddzielone od posadzki, żeby uniknąć migotania. Zarządza wyłącznie swoim folderem `Workspace.ShoppingQueenPrototype`. Jeśli istniejąca mapa zajmuje ten sam obszar, dostosuj współrzędne w `src/server/World.luau`.
 
 ## Jak grać
 
-- W poczekalni wejdź do dowolnego butiku, podejdź do lady i naciśnij E (lub przycisk interakcji na telefonie). Oferta i bezpłatne przymiarki działają również przy jednym graczu. Podczas trwającej rundy obserwatorzy mogą oglądać ofertę, ale nie kupować ani przymierzać.
+- Poczekalnia to osobny, zamknięty Style Lounge wewnątrz galerii: przez szyby widać pasaż, a wewnątrz są dwie kanapy (6 miejsc siedzących), stolik, magazyny, rośliny i oświetlenie. Nie można wyjść do sklepów przed rundą. Po odliczaniu serwer przenosi wybranych uczestników do pasażu. Pozostali oraz osoby dołączające w trakcie rundy zostają w salonie.
 - Po 15 sekundach lobby runda losuje dwa różne tematy. Budżet jest wspólny dla obu stylizacji i nie ma związku z Robuxami.
 - Podejdź do stoiska i użyj interakcji (E na klawiaturze). Zakupy i przymiarki wymagają bliskości odpowiedniego sklepu. Przymiarka nie zapisuje produktu ani nie pobiera pieniędzy.
 - Wybierz zestaw 1 lub 2. Kupiony produkt dodaj przyciskiem „Wybierz do zestawu”. W garderobie dostępne są wszystkie zakupione produkty; można wykorzystać je w obu zestawach.
@@ -39,19 +39,22 @@ python tests/check_world.py
 rojo build -o "Ola Roblox.rbxlx"
 ```
 
-Testy reguł sprawdzają brak środków, ponowne zakupy, niezależność zestawów, zapis, nieprawidłowe i własne głosy, obserwatorów, wyjście gracza i remisy. Test `check_world.py` wymaga Pythona 3 oraz interpretera `luau` w PATH (lub zmiennej `LUAU_BIN`). Uruchamia generator mapy z uproszczonymi obiektami silnika i sprawdza cztery interakcje sklepów, przejście od pasażu do lad, rozdzielenie podłóg i zachowanie istniejącej mapy. Nie sprawdza renderowania ani fizyki Roblox i nie zastępuje testu multiplayer w Studio.
+Testy reguł sprawdzają brak środków, ponowne zakupy, niezależność zestawów, zapis, nieprawidłowe i własne głosy, obserwatorów, wyjście gracza i remisy. Test `check_world.py` wymaga Pythona 3 oraz interpretera `luau` w PATH (lub zmiennej `LUAU_BIN`). Uruchamia generator mapy z uproszczonymi obiektami silnika i sprawdza cztery interakcje sklepów, przejście od pasażu do lad, rozdzielenie podłóg i zachowanie istniejącej mapy, zamknięcie salonu z każdej strony, przezroczystość okien, sześć siedzeń oraz wolne miejsce odradzania. Nie sprawdza renderowania ani fizyki Roblox i nie zastępuje testu multiplayer w Studio.
 
 ### Kontrola ręczna w Studio
 
 Do szybkiego testu tymczasowo zmniejsz `ShoppingSeconds` i `VotingSeconds`, a potem przywróć wartości:
 
-1. Najpierw uruchom jeden klient: podejdź do każdej lady, otwórz ofertę, przymierz produkt; sprawdź brak migotania podłogi i wejścia do butików. Następnie uruchom dwa klienty. Sprawdź jednakowe tematy i budżety. Przy jednej osobie runda nie może ruszyć.
-2. Przymierz produkt: budżet i zestawy nie powinny się zmienić. Kup: budżet spada tylko raz. Zakup z daleka lub bez środków ma być odrzucony.
-3. Zapisz dwa różne zestawy. Sprawdź odrzucenie zapisu bez góry/dołu oraz konieczność ponownego zapisu po zmianie. Zresetuj postać i sprawdź zachowanie garderoby.
-4. Sprawdź oba pokazy każdej osoby, kamerę i oceny. Nie można oceniać siebie ani głosować ponownie. Porównaj ranking z oddanymi ocenami.
-5. Dołącz trzecim klientem podczas zakupów: ma obserwować bez zakupów i głosowania. Wyjdź jednym z dwóch uczestników: gra ma wrócić do lobby, odblokować postać i przywrócić kamerę.
-6. Sprawdź kolejną rundę, reset stanu, UI w emulatorze telefonu i awatary R6/R15.
+1. Uruchom jeden klient: postać ma pojawić się w Style Lounge. Sprawdź widok na galerię przez okna, siedzenie na kanapie, zamknięte drzwi, próby skakania nad ścianami i reset postaci. Postać ma pozostać w salonie, a runda nie może ruszyć.
+2. Uruchom drugi klient i podczas odliczania usiądź na kanapie. Po starcie zakupów obie postacie mają znaleźć się w pasażu, bez przyciągania kanapy. Sprawdź jednakowe tematy i budżety, wejścia do butików i brak migotania podłogi. Reset postaci podczas zakupów ma odrodzić uczestnika w pasażu.
+3. Przymierz produkt: budżet i zestawy nie powinny się zmienić. Kup: budżet spada tylko raz. Zakup z daleka lub bez środków ma być odrzucony.
+4. Zapisz dwa różne zestawy. Sprawdź odrzucenie zapisu bez góry/dołu oraz konieczność ponownego zapisu po zmianie. Zresetuj postać i sprawdź zachowanie garderoby.
+5. Sprawdź oba pokazy każdej osoby, kamerę i oceny. Nie można oceniać siebie ani głosować ponownie. Porównaj ranking z oddanymi ocenami.
+6. Dołącz trzecim klientem podczas zakupów: ma zostać w zamkniętym salonie bez zakupów i głosowania. Wyjdź jednym z dwóch uczestników: gra ma wrócić do salonu, odblokować postać i przywrócić kamerę.
+7. Sprawdź kolejną rundę, powrót do salonu po wynikach, reset stanu, UI w emulatorze telefonu i awatary R6/R15.
 
 `Roblox Shopping queen.rbxl` pozostaje oryginałem. Rojo zmienia otwarty projekt Studio; zapis i publikacja gry do Roblox należą do właściciela.
 
 Po pobraniu aktualizacji zatrzymaj Play przyciskiem Stop, poczekaj na synchronizację Rojo i dopiero uruchom Play ponownie. Moduły generujące mapę nie przebudują jej w już trwającym teście.
+
+Salon pozostaje fizycznie zamknięty także podczas zakupów, aby obserwatorzy nie mogli wyjść za uczestnikami. Oprócz kolizji ścian serwer co 0,5 sekundy sprawdza obszar oczekiwania. Aktywni uczestnicy zakupów i aktualny prezenter mają odpowiednio dostęp do pasażu i wybiegu. Reset oraz upadek postaci nie omijają poczekalni.

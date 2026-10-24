@@ -45,7 +45,7 @@ return function(source)
  local mall = World.create(function(player, category) opened[category] = player end)
  local parts, prompts, shops = {}, {}, {}
  for _, obj in ipairs(all) do
-  if obj.ClassName == "Part" or obj.ClassName == "SpawnLocation" then
+  if obj.ClassName == "Part" or obj.ClassName == "SpawnLocation" or obj.ClassName == "Seat" then
    if obj ~= original then table.insert(parts, obj); assert(obj.Anchored, obj.Name .. " is not anchored") end
   elseif obj.ClassName == "ProximityPrompt" then table.insert(prompts, obj)
   elseif obj.ClassName == "Model" then shops[obj.Name] = obj end
@@ -84,7 +84,47 @@ return function(source)
   end
  end
  assert(World.Lobby.Position.Y > 8 and World.Stage.Position.Y > 10, "spawn and stage above floor")
+ assert(World.isInsideLobby(World.Lobby.Position), "spawn inside lounge")
+ assert(not World.isInsideLobby(World.ShoppingStart.Position), "shopping destination outside lounge")
+ for _, position in ipairs({ vec(0, 12, 61), vec(0, 12, 87), vec(18, 12, 74), vec(-18, 12, 74), vec(0, 30, 74), vec(0, 0, 74) }) do
+  assert(not World.isInsideLobby(position), "escape or fall detected")
+ end
+ local function blocked(x, y, z)
+  for _, p in ipairs(parts) do
+   if not p.CanCollide then continue end
+   local pos = if p.CFrame then p.CFrame.Position else p.Position
+   if math.abs(x-pos.X) <= p.Size.X/2 and math.abs(y-pos.Y) <= p.Size.Y/2 and math.abs(z-pos.Z) <= p.Size.Z/2 then return true end
+  end
+  return false
+ end
+ for _, y in ipairs({ 10, 18, 23 }) do
+  for x = -16, 16, 2 do
+   assert(blocked(x,y,62), "front window or closed door has gap")
+   assert(blocked(x,y,86), "back wall has gap")
+  end
+  for z = 63, 85, 2 do
+   assert(blocked(-17,y,z) and blocked(17,y,z), "side wall has gap")
+  end
+ end
+ for x = -16, 16, 4 do
+  for z = 63, 85, 4 do assert(blocked(x,24.1,z), "ceiling must prevent climbing out") end
+ end
+ local seats, transparentWalls = 0, 0
+ for _, p in ipairs(parts) do
+  if p.ClassName == "Seat" then seats += 1 end
+  if p.Name == "LoungeSideGlass" or p.Name == "LoungeFrontGlass" or p.Name == "LockedLobbyDoor" then
+   assert(p.CanCollide and p.Transparency >= 0.6, "lounge windows must be see-through and solid")
+   transparentWalls += 1
+  end
+ end
+ assert(seats == 6 and transparentWalls == 5, "furnished lounge with clear view of mall")
+ local spawn = World.Lobby.Position
+ for _, x in ipairs({ -1, 0, 1 }) do
+  for _, y in ipairs({ -2, 0, 2 }) do
+   for _, z in ipairs({ -1, 0, 1 }) do assert(not blocked(spawn.X+x,spawn.Y+y,spawn.Z+z), "spawn overlaps furniture") end
+  end
+ end
  World.create(function() end)
  assert(mall.destroyed and not original.destroyed, "rebuild must replace only generated gallery")
- print("PASS: gallery geometry, four store prompts, walkable entrances, separated floors, safe rebuild (" .. #parts .. " parts)")
+ print("PASS: gallery entrances/floors, enclosed glass lounge, six seats, safe spawn, destinations and rebuild (" .. #parts .. " parts)")
 end

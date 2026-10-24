@@ -46,7 +46,7 @@ local function message(text)
 end
 
 local render
-button(hud, "Sklepy / garderoba", UDim2.new(0.43, 0, 0, 34), UDim2.new(0.56, 0, 0, 84), function()
+local menuButton = button(hud, "Poczekalnia / zasady", UDim2.new(0.43, 0, 0, 34), UDim2.new(0.56, 0, 0, 84), function()
 	opened = not opened; render()
 end)
 button(panel, "×", UDim2.fromOffset(44, 30), UDim2.new(1, -48, 0, 2), function() opened = false; render() end)
@@ -72,24 +72,14 @@ render = function()
 	local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Shopping = "Zakupy", Showcase = "Pokaz i oceny", Results = "Wyniki" }
 	title.Text = "KRÓLOWA STYLU • " .. (phases[state.phase] or state.phase)
 	local waiting = state.phase == "Lobby" or state.phase == "Intermission"
-	themes.Text = if #state.themes == 2 then "1. " .. state.themes[1] .. "   |   2. " .. state.themes[2] else "Gracze: " .. (state.playerCount or 1) .. "/" .. Config.MinPlayers .. " • możesz już zwiedzać i przymierzać w butikach."
-	wallet.Text = if state.participating then "Budżet: " .. state.budget .. " zł" elseif waiting then "Zakupy za budżet ruszą od 2 osób" else "Obserwujesz • czekaj na rundę"
+	themes.Text = if #state.themes == 2 then "1. " .. state.themes[1] .. "   |   2. " .. state.themes[2] else "Gracze: " .. (state.playerCount or 1) .. "/" .. Config.MinPlayers .. " • odpocznij w salonie z widokiem na galerię."
+	wallet.Text = if state.participating then "Budżet: " .. state.budget .. " zł" elseif waiting then "Wejście do galerii po starcie rundy" else "Poczekaj w salonie na kolejną rundę"
+	menuButton.Text = if Access.canBrowse(state.phase, state.participating) then "Sklepy / garderoba" else "Poczekalnia / zasady"
 	if waiting or (state.phase == "Shopping" and not state.participating) then
-		heading.Text = "Butiki • bezpłatne przymiarki w poczekalni"
-		for index, pair in ipairs(categories) do
-			if pair[1] == "owned" then continue end
-			local selectedCategory = pair[1]
-			button(controls, pair[2], UDim2.new(0.25, -4, 0, 38), UDim2.fromScale((index - 1) * 0.25, 0), function() category = selectedCategory; render() end)
-		end
-		row(if waiting then "Wejdź do butiku i podejdź do lady. Możesz przymierzać bez drugiego gracza. Kupowanie i zapisywanie zestawów ruszy po rozpoczęciu rundy." else "Ta runda już trwa. Możesz obejrzeć ofertę, a zakupy zrobisz w następnej rundzie.", 80)
-		for _, item in ipairs(Config.Catalog) do
-			if item.category ~= category then continue end
-			local card = row(item.name .. " • " .. item.price .. " zł w rundzie")
-			local id = item.id
-			if Access.canTry(state.phase, state.participating) then
-				button(card, "Przymierz bez kupowania", UDim2.new(1, -12, 0, 36), UDim2.fromOffset(6, 44), function() act("Try", id) end)
-			end
-		end
+		heading.Text = "STYLE LOUNGE • rozsiądź się wygodnie"
+		row(if waiting then "Czekamy na uczestników. Możesz usiąść na kanapie i oglądać galerię przez szyby. Wyjście pozostaje zamknięte do rozpoczęcia zakupów." else "Runda już trwa. Zostań w salonie; weźmiesz udział w następnej rundzie.", 80)
+		row("Po odliczaniu przeniesiemy uczestników do pasażu. Dostaniesz dwa tematy, 1500 zł i 8 minut na przygotowanie dwóch stylizacji.", 80)
+		row("Przy stoisku użyj E lub przycisku na ekranie. Kup produkty, wybierz je do obu zestawów i zapisz każdą stylizację. Potem czas na pokazy i oceny!", 80)
 	elseif state.phase == "Shopping" and state.participating then
 		heading.Text = "Wybierz zestaw • kupione produkty można użyć w obu stylizacjach"
 		for index = 1, 2 do

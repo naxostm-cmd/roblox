@@ -1,9 +1,12 @@
--- Browsing must not depend on a multiplayer round already being active.
+-- Waiting players stay in the lounge; only round participants enter the mall.
 local Access = {}
-function Access.canBrowse(phase)
-	return phase == "Lobby" or phase == "Intermission" or phase == "Shopping"
+function Access.canBrowse(phase, participating)
+	return phase == "Shopping" and participating == true
 end
 function Access.canTry(phase, participating)
-	return phase == "Lobby" or phase == "Intermission" or (phase == "Shopping" and participating)
+	return Access.canBrowse(phase, participating)
+end
+function Access.mustWait(phase, participating, presenting)
+	return not (Access.canBrowse(phase, participating) or (phase == "Showcase" and participating == true and presenting == true))
 end
 return Access

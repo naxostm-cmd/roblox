@@ -51,7 +51,21 @@ end
 local function move(player, cf, anchored)
 	local char = player.Character
 	local root = char and char:FindFirstChild("HumanoidRootPart")
-	if root then root.Anchored = false; char:PivotTo(cf); root.Anchored = anchored == true end
+	if root then
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			local seat = humanoid.SeatPart
+			humanoid.Sit = false
+			local weld = seat and seat:FindFirstChild("SeatWeld")
+			if weld then weld:Destroy() end
+		end
+		root.Anchored = false; root.AssemblyLinearVelocity = Vector3.zero; root.AssemblyAngularVelocity = Vector3.zero
+		char:PivotTo(cf); root.Anchored = anchored == true
+	end
+end
+
+local function spawnPoint(player)
+	return if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then World.ShoppingStart else World.Lobby
 end
 
 local function displayFor(player)
@@ -71,12 +85,12 @@ local function setupPlayer(player)
 	player.CharacterAdded:Connect(function(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if root and player.Parent then
-			move(player, World.Lobby, false)
+			move(player, spawnPoint(player), false)
 			-- AppearanceLoaded will reapply after Roblox finishes loading the avatar.
 			if player:HasAppearanceLoaded() then displayFor(player) end
 		end
 	end)
-	if player.Character then move(player, World.Lobby, false) end
+	if player.Character then move(player, spawnPoint(player), false) end
 	task.defer(broadcast)
 end
 Players.PlayerAdded:Connect(setupPlayer)
@@ -88,8 +102,23 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 World.create(function(player, category)
-	if Access.canBrowse(state.phase) then send(player, nil, category)
-	else send(player, "Sklepy otworzą się po pokazach.") end
+	if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then send(player, nil, category)
+	else send(player, "Poczekaj w salonie — wejdziesz do sklepów jako uczestnik rundy.") end
+end)
+
+-- Walls contain normal movement. This also covers resets, falls and attempts to
+-- move a waiting character outside the room; the decision belongs to the server.
+task.spawn(function()
+	while true do
+		for _, player in ipairs(Players:GetPlayers()) do
+			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if root and Access.mustWait(state.phase, data[player.UserId] ~= nil, state.presenter == player.UserId)
+				and not World.isInsideLobby(root.Position) then
+				move(player, World.Lobby, false)
+			end
+		end
+		task.wait(0.5)
+	end
 end)
 
 request.OnServerEvent:Connect(function(player, action, payload)
@@ -100,17 +129,6 @@ request.OnServerEvent:Connect(function(player, action, payload)
 	if action == "Sync" then send(player); return end
 	if type(payload) ~= "table" then return end
 	local own = data[player.UserId]
-	if action == "Try" and Access.canTry(state.phase, false) then
-		if type(payload.id) ~= "string" or #payload.id > 64 then return end
-		local item = Rules.item(Config.Catalog, payload.id)
-		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if not item or not root then return end
-		if (root.Position - World.StorePositions[item.category]).Magnitude > Config.StoreDistance then
-			send(player, "Wejdź do odpowiedniego butiku, żeby przymierzyć produkt."); return
-		end
-		Appearance.apply(player.Character, { [item.category] = item.id }, Config.Catalog)
-		send(player, "Bezpłatna przymiarka. Budżet i zakupy ruszą w rundzie od dwóch osób."); return
-	end
 	if not own then send(player, "Dołączysz do następnej rundy."); return end
 	if action == "Vote" then
 		if state.phase ~= "Showcase" or workspace:GetServerTimeNow() >= state.endsAt or payload.showId ~= state.showId then
@@ -192,6 +210,9 @@ while true do
 	if second >= first then second += 1 end
 	state.themes = { Config.Themes[first], Config.Themes[second] }; state.round += 1
 	state.phase = "Shopping"
+	for index, player in ipairs(participants) do
+		move(player, World.ShoppingStart * CFrame.new(((index - 1) % 4 - 1.5) * 3, 0, math.floor((index - 1) / 4) * 4), false)
+	end
 	for _, player in ipairs(Players:GetPlayers()) do displayFor(player) end
 	if not countdown(Config.ShoppingSeconds, enough) then continue end
 	local aborted = false

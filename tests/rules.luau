@@ -58,10 +58,19 @@ for _, item in ipairs(Config.Catalog) do
 end
 check(#Config.Themes >= 2 and Config.MinPlayers >= 2 and Config.MaxPlayers >= Config.MinPlayers, "valid round settings")
 local Access = require("../src/shared/Access")
-check(Access.canBrowse("Lobby") and Access.canBrowse("Intermission"), "stores open before round starts")
-check(Access.canTry("Lobby", false) and Access.canTry("Intermission", false), "solo lobby preview")
-check(Access.canTry("Shopping", true), "participant shopping preview")
-check(not Access.canTry("Shopping", false), "late spectator cannot preview during round")
-check(not Access.canBrowse("Showcase") and not Access.canBrowse("Results"), "stores closed for shows")
-check(not Access.canTry("Showcase", true), "no preview while on runway")
+check(not Access.canBrowse("Lobby", false) and not Access.canBrowse("Intermission", true), "lounge closed before shopping")
+check(not Access.canTry("Lobby", false), "no remote preview from lounge")
+check(Access.canBrowse("Shopping", true) and Access.canTry("Shopping", true), "participants may shop")
+check(not Access.canBrowse("Shopping", false), "late arrivals stay in lounge")
+for _, phase in ipairs({ "Lobby", "Intermission", "Results" }) do
+ for _, participating in ipairs({ true, false }) do
+  check(Access.mustWait(phase, participating, false), "everyone waits during " .. phase)
+ end
+end
+check(not Access.mustWait("Shopping", true, false), "release participant for shopping")
+check(Access.mustWait("Shopping", false, false), "spectator remains in lounge during shopping")
+check(not Access.mustWait("Showcase", true, true), "presenter allowed on runway")
+check(Access.mustWait("Showcase", true, false), "other participants wait between shows")
+check(Access.mustWait("Showcase", false, true), "spectator cannot claim presenter access")
+check(Access.mustWait("Results", true, true), "presenter returns to lounge after shows")
 print("PASS: " .. count .. " gameplay rule assertions")
