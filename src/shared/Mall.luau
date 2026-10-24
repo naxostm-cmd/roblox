@@ -12,11 +12,35 @@ local definitions = {
  { "walk", "Velvet Walk", "shoes", "Buty na wyjście" }, { "pearl", "Pearl Room", "jewelry", "Biżuteria" },
  { "hem", "Hemline", "bottom", "Kolekcja dołów" }, { "crown", "Crown & Co", "accessory", "Kapelusze i berety" },
 }
+-- Two-storey layout: east/west wings, three units per corridor side.
+-- Unit centres are shared with World; facing = 1 when the shop front faces +Z.
+Mall.Levels = { "Parter", "Piętro 1" }
+Mall.Wings = { east = "Skrzydło Różane (wschód)", west = "Skrzydło Złote (zachód)" }
+local function unit(wing, level, side, index)
+ return { x = (if wing == "east" then 1 else -1) * (28 + index * 28), z = side * 27, level = level, wing = wing, facing = -side }
+end
+local placement = {
+ rose = unit("east", 1, -1, 1), denim = unit("east", 1, 1, 1), silk = unit("east", 1, -1, 2), pleat = unit("east", 1, 1, 2), sole = unit("east", 1, -1, 3), bags = unit("east", 1, 1, 3),
+ urban = unit("west", 1, -1, 1), tailor = unit("west", 1, 1, 1), bloom = unit("west", 1, -1, 2), hem = unit("west", 1, 1, 2), steps = unit("west", 1, -1, 3), gold = unit("west", 1, 1, 3),
+ noir = unit("east", 2, -1, 1), walk = unit("east", 2, 1, 1), leather = unit("east", 2, -1, 2), hats = unit("east", 2, 1, 2), optics = unit("east", 2, -1, 3),
+ casual = unit("west", 2, -1, 1), pearl = unit("west", 2, 1, 1), crown = unit("west", 2, -1, 2),
+}
+-- Non-trading units make the wings feel like a real mall.
+Mall.Decor = {
+ { id = "perfume", name = "Lumière", specialty = "Perfumeria", place = unit("east", 2, 1, 3), color = {150,120,190} },
+ { id = "beauty", name = "Beauty Bar", specialty = "Kosmetyki", place = unit("west", 2, 1, 2), color = {226,140,150} },
+ { id = "books", name = "Słowo", specialty = "Księgarnia", place = unit("west", 2, -1, 3), color = {120,150,120} },
+ { id = "tech", name = "Pixel", specialty = "Elektronika", place = unit("west", 2, 1, 3), color = {90,120,170} },
+}
 Mall.Stores = {}
-local rows = { 42, 0, -84, -126, -168, -210, -252, -294, -336, -378 }
 for i, def in ipairs(definitions) do
+ local place = placement[def[1]]
  table.insert(Mall.Stores, { id = def[1], name = def[2], category = def[3], specialty = def[4], number = i,
-  x = if i % 2 == 1 then -42 else 42, z = rows[math.ceil(i / 2)], color = ({ {202,114,148}, {96,137,167}, {169,123,94}, {207,171,105} })[(i-1)%4+1] })
+  x = place.x, z = place.z, level = place.level, wing = place.wing, facing = place.facing,
+  color = ({ {202,114,148}, {96,137,167}, {169,123,94}, {207,171,105} })[(i-1)%4+1] })
+end
+function Mall.where(store)
+ return Mall.Levels[store.level] .. " • " .. Mall.Wings[store.wing]
 end
 local pools = {
  top = { {"blouse","Bluzka z kokardą",220}, {"jacket","Żakiet z klapami",280}, {"corset","Gorset wiązany",260}, {"hoodie","Bluza z kapturem",190}, {"vest","Kamizelka",170}, {"tunic","Tunika z paskiem",240} },

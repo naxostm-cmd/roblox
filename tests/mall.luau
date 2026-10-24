@@ -5,7 +5,7 @@ assert(#Mall.Stores == 20)
 local ids, positions, counts = {}, {}, {}
 for _, store in ipairs(Mall.Stores) do
  assert(not ids[store.id]); ids[store.id] = store
- local position = tostring(store.x)..":"..tostring(store.z)
+ local position = tostring(store.x)..":"..tostring(store.z)..":"..tostring(store.level)
  assert(not positions[position]); positions[position] = true
  counts[store.category] = (counts[store.category] or 0) + 1
 end

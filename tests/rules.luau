@@ -57,7 +57,7 @@ for _, item in ipairs(Catalog) do
  check(not seen[item.id] and item.price > 0 and item.price % 1 == 0, "unique catalog items with positive integer prices")
  seen[item.id] = true
 end
-check(#Config.Themes >= 2 and Config.MinPlayers >= 2 and Config.MaxPlayers >= Config.MinPlayers, "valid round settings")
+check(#Config.Themes >= 2 and Config.MinPlayers >= 1 and Config.RoundSize >= 2 and Config.MaxPlayers >= Config.RoundSize, "valid round settings: solo player plus bots")
 local Access = require("../src/shared/Access")
 check(not Access.canBrowse("Lobby", false) and not Access.canBrowse("Intermission", true), "lounge closed before shopping")
 check(not Access.canTry("Lobby", false), "no remote preview from lounge")

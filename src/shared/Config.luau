@@ -1,12 +1,22 @@
 local Config = {
-	MinPlayers = 2,
+	-- One real player is enough; bots fill the round up to RoundSize.
+	MinPlayers = 1,
 	MaxPlayers = 8,
+	RoundSize = 4,
 	Budget = 1500,
-	IntermissionSeconds = 15,
+	IntermissionSeconds = 5,
 	ShoppingSeconds = 480,
 	VotingSeconds = 15,
 	ResultsSeconds = 20,
 	StoreDistance = 24,
+	BotNames = { "Zosia", "Lena", "Maja", "Iga", "Hania", "Nela", "Ola", "Pola" },
+	-- Roblox-licensed APM Music tracks (APMOfficial), safe in any experience.
+	Music = {
+		Lobby = { 9044539308, 1839002474, 1841296740 },
+		Shopping = { 1844487326, 1837913244, 1837702577, 1839763308 },
+		Showcase = { 1835983198, 1836568532 },
+		Results = { 1837407430 },
+	},
 	Themes = { "Randka w Paryżu", "Elegancki biznes", "Impreza na plaży", "Wesele glamour", "Jesienna stylizacja", "Czerwony dywan" },
 	Palette = {
         { id = "rose", name = "Pudrowy róż", rgb = { 244, 119, 170 } },
