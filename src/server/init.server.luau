@@ -27,14 +27,14 @@ local function activeCount()
 	return count
 end
 
-local function send(player, message, store)
+local function send(player, message, store, fittingItem)
 	local own = data[player.UserId]
 	local roster = {}
 	for _, participant in ipairs(participants) do
 		if participant.Parent == Players then table.insert(roster, { userId = participant.UserId, name = participant.DisplayName }) end
 	end
 	update:FireClient(player, {
-		playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
+		fittingItem = fittingItem, playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
 		phase = state.phase, endsAt = state.endsAt, round = state.round, themes = state.themes,
 		presenter = state.presenter, slot = state.slot, showId = state.showId, results = state.results,
 		roster = roster, participating = own ~= nil, budget = if own then own.budget else 0,
@@ -101,10 +101,10 @@ Players.PlayerRemoving:Connect(function(player)
 	task.defer(broadcast)
 end)
 
-World.create(function(player, category)
-	if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then send(player, nil, category)
+World.create(function(player, category, fittingItem)
+	if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then send(player, nil, category, fittingItem)
 	else send(player, "Poczekaj w salonie — wejdziesz do sklepów jako uczestnik rundy.") end
-end)
+end, Config.Catalog, require(ReplicatedStorage.Shared.Garments))
 
 -- Walls contain normal movement. This also covers resets, falls and attempts to
 -- move a waiting character outside the room; the decision belongs to the server.
@@ -152,11 +152,12 @@ request.OnServerEvent:Connect(function(player, action, payload)
 	if not item then return end
 	if action == "Buy" or action == "Try" then
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if not root or (root.Position - World.StorePositions[item.category]).Magnitude > Config.StoreDistance then
+		if not root or (root.Position - World.StorePositions[item.store or item.category]).Magnitude > Config.StoreDistance then
 			send(player, "Podejdź do odpowiedniego sklepu."); return
 		end
 		if action == "Try" then
-			local preview = table.clone(own.looks[slot]); preview[item.category] = item.id
+			local preview, errorMessage = Rules.preview(own, Config.Catalog, slot, item.id, payload.color, Config.Palette)
+            if not preview then send(player, errorMessage); return end
 			Appearance.apply(player.Character, preview, Config.Catalog)
 			send(player, "Przymiarka — aby zachować produkt, kup go i wybierz do stylizacji."); return
 		end
@@ -164,7 +165,7 @@ request.OnServerEvent:Connect(function(player, action, payload)
 		send(player, message); return
 	end
 	if action == "Equip" then
-		local _, message = Rules.equip(own, Config.Catalog, slot, item.id)
+		local _, message = Rules.equip(own, Config.Catalog, slot, item.id, payload.color, Config.Palette)
 		own.activeSlot = slot; displayFor(player); send(player, message)
 	end
 end)

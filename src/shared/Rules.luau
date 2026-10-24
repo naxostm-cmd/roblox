@@ -18,13 +18,32 @@ function Rules.buy(data, item)
 	return true, "Kupiono: " .. item.name
 end
 
-function Rules.equip(data, catalog, slot, id)
+function Rules.color(palette, key)
+	for _, color in ipairs(palette or {}) do if color.id == key then return color end end
+	return nil
+end
+
+function Rules.preview(data, catalog, slot, id, colorKey, palette)
+	if slot ~= 1 and slot ~= 2 then return nil, "Nieprawidłowa stylizacja." end
+	local item = Rules.item(catalog, id)
+	if not item then return nil, "Nieznany produkt." end
+	if colorKey ~= nil and not Rules.color(palette, colorKey) then return nil, "Nieprawidłowy kolor." end
+	local look = table.clone(data.looks[slot])
+	look.colors = table.clone(look.colors or {})
+	look[item.category] = id
+	look.colors[item.category] = colorKey or item.colorKey
+	return look
+end
+
+function Rules.equip(data, catalog, slot, id, colorKey, palette)
 	if slot ~= 1 and slot ~= 2 then return false, "Nieprawidłowa stylizacja." end
 	local item = Rules.item(catalog, id)
 	if not item or not categories[item.category] or not data.owned[id] then
 		return false, "Najpierw kup ten produkt."
 	end
-	data.looks[slot][item.category] = id
+	local look, message = Rules.preview(data, catalog, slot, id, colorKey, palette)
+	if not look then return false, message end
+	data.looks[slot] = look
 	data.saved[slot] = false
 	return true, "Dodano do stylizacji " .. slot
 end

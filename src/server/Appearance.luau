@@ -1,4 +1,8 @@
 local Appearance = {}
+local shared = game:GetService("ReplicatedStorage").Shared
+local Garments = require(shared.Garments)
+local Rules = require(shared.Rules)
+local Config = require(shared.Config)
 local originals = setmetatable({}, { __mode = "k" })
 
 local function remember(character)
@@ -8,6 +12,7 @@ local function remember(character)
 		if object:IsA("BasePart") and object.Parent == character then snapshot.colors[object] = object.Color end
 		if object:IsA("Shirt") then snapshot.clothes[object] = object.ShirtTemplate end
 		if object:IsA("Pants") then snapshot.clothes[object] = object.PantsTemplate end
+        if object:IsA("ShirtGraphic") then snapshot.clothes[object] = object.Graphic end
 		if object:IsA("BasePart") and object:FindFirstAncestorOfClass("Accessory") then snapshot.accessories[object] = object.Transparency end
 	end
 	originals[character] = snapshot
@@ -21,7 +26,7 @@ local function restore(character)
 	for p, color in pairs(snapshot.colors) do if p.Parent then p.Color = color end end
 	for p, value in pairs(snapshot.clothes) do
 		if p.Parent then
-			if p:IsA("Shirt") then p.ShirtTemplate = value else p.PantsTemplate = value end
+			if p:IsA("Shirt") then p.ShirtTemplate = value elseif p:IsA("Pants") then p.PantsTemplate = value else p.Graphic = value end
 		end
 	end
 	for p, value in pairs(snapshot.accessories) do if p.Parent then p.Transparency = value end end
@@ -42,13 +47,18 @@ function Appearance.apply(character, look, catalog)
 	if not look or next(look) == nil then return end
 	for p in pairs(snapshot.clothes) do
 		if p.Parent then
-			if p:IsA("Shirt") then p.ShirtTemplate = "" else p.PantsTemplate = "" end
+			if p:IsA("Shirt") then p.ShirtTemplate = "" elseif p:IsA("Pants") then p.PantsTemplate = "" else p.Graphic = "" end
 		end
 	end
 	local folder = Instance.new("Folder"); folder.Name = "SQOutfit"; folder.Parent = character
 	for _, item in ipairs(catalog) do
 		if look[item.category] ~= item.id then continue end
-		local color = Color3.fromRGB(table.unpack(item.color))
+		local choice = look.colors and Rules.color(Config.Palette, look.colors[item.category])
+        local color = Color3.fromRGB(table.unpack(if choice then choice.rgb else item.color))
+        if item.style then
+            Garments.build(character, item, color, folder)
+            continue
+        end
 		if item.category == "top" or item.category == "bottom" then
 			for p in pairs(snapshot.colors) do
 				local name = p.Name

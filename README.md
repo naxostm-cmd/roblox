@@ -25,7 +25,7 @@ Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **
 
 ## Zakres prototypu
 
-Ubrania są wizualizowane jako kolory części awatara, proste buty i kapelusze. To nie docelowe modele sukienek ani zakupy katalogowe. Obsługiwane są nazwy części R6/R15; niestandardowe awatary, warstwowe ubrania i nietypowe skale wymagają sprawdzenia w Studio. Galeria ma już budynki, lecz docelowe modele i tekstury ubrań pozostają kolejnym etapem.
+Rose Atelier ma pięć własnych, stylizowanych fasonów 3D: bluzkę, żakiet, gorset i dwie spódnice. Pozostałe produkty nadal używają kolorów części awatara oraz prostych dodatków. Fasony są zbudowane z dopasowanych części i detali; nie są symulacją tkaniny ani ubraniami z katalogu Roblox. Obsługiwane są nazwy części R6/R15; niestandardowe awatary, warstwowe ubrania i nietypowe skale wymagają sprawdzenia w Studio. Galeria ma już budynki, lecz docelowe modele i tekstury ubrań pozostają kolejnym etapem.
 
 Ceny, tematy i czas zmienisz w `src/shared/Config.luau`. Reguły zakupów, zapisów i ocen są w `src/shared/Rules.luau`. Serwer sprawdza budżet, własność produktów, dystans do sklepu, etap rundy i uprawnienia do głosowania. Klient obsługuje UI oraz kamerę.
 
@@ -80,3 +80,17 @@ Zapowiedzi edytuje się w `src/shared/PremiumCatalog.luau`; wygląd elementów w
 3. Na dwóch klientach przetestuj zakup za złotówki, zmianę zestawu, zapis, oceny 1–10 i wyniki. Panel ocen powinien pozostawić widoczny wybieg; własne i powtórne głosy pozostają blokowane przez serwer.
 4. Podczas oczekiwania w Butiku + sprawdź przejście do nowego pokazu. Po zamknięciu ocen można je ponownie otworzyć dolnym przyciskiem. Reset postaci nie powinien usuwać GUI.
 5. W emulatorze telefonu sprawdź pion i poziom, przewijanie kart, wszystkie przyciski i widoczność interfejsu przy systemowych kontrolkach. Renderowanie, dotyk i obsługa kamery wymagają testu w Studio; build CLI ich nie zastępuje.
+
+## Rose Atelier: fasony i kolory
+
+Po rozpoczęciu rundy wejdź do **Rose Atelier**, pierwszego butiku po lewej stronie pasażu. Wybierz manekin przyciskiem E albo otwórz ofertę przy ladzie. Zakładka **Atelier** zawiera całą pięcioelementową kolekcję, w tym spódnice sprzedawane w tym sklepie. Przymierzalnia ma zasłony i dekoracyjne lustro; właściwy podgląd postaci jest w panelu GUI.
+
+1. Wybierz zestaw 1 lub 2, a na karcie produktu kliknij **Fason i kolory**.
+2. Obróć podgląd strzałkami i wybierz róż, czerń, ecru, błękit, złoto albo szałwię. Podgląd pokazuje wybrany fason, nie cały zapisany zestaw.
+3. **Przymierz na postaci** nakłada wybrany fason i kolor na postać widoczną innym graczom. Wymaga bliskości odpowiedniego butiku i nie zmienia budżetu ani zestawu.
+4. Kup produkt, wybierz go do zestawu i zapisz zestaw. Kolory można zmieniać bez ponownego kupowania; każdy zestaw ma własny wybór koloru. Po zmianie ponownie wybierz produkt do zestawu i zapisz.
+5. **Zakończ przymiarkę** przywraca aktualnie skomponowany zestaw. Przymierzony, ale niewybrany produkt nie trafia do pokazu.
+
+Modele w `src/shared/Garments.luau` są wspólne dla ekspozycji sklepu, podglądu i ubrań postaci. Paleta oraz fasony znajdują się w `Config.luau`. Serwer sprawdza kolor, własność, budżet i miejsce zakupów. Przymiarka kopiuje zestaw wraz z kolorami, więc nie może zmienić zapisu drugiej stylizacji. Kolory są stanem rundy, bez trwałego zapisu między sesjami.
+
+Test w Studio: sprawdź pięć manekinów, obracanie podglądu, każdy kolor, brak pobrania środków za przymiarkę, powrót do zestawu, dwa kolory tego samego ubrania w dwóch zestawach, reset postaci i oba pokazy. Sprawdź R6 oraz R15 i różne skale awatara — części ubrań poruszają się ze swoim punktem mocowania, więc przy animacjach oraz nietypowych ciałach mogą wymagać dalszego dopasowania. Lustro nie renderuje odbicia postaci. Zakupy nadal wymagają aktywnej rundy od dwóch osób; poczekalnia pozostaje zamknięta.

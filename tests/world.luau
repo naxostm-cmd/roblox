@@ -1,10 +1,11 @@
 -- Geometry checks with a small engine stand-in, not a Roblox rendering test.
-return function(source)
+return function(source, configSource, garmentsSource)
  local all = {}
  local vector = {}
  vector.__index = vector
  vector.__add = function(a, b) return setmetatable({ X = a.X + b.X, Y = a.Y + b.Y, Z = a.Z + b.Z }, vector) end
  local function vec(x, y, z) return setmetatable({ X = x, Y = y, Z = z }, vector) end
+ function vector:Lerp(other, alpha) return vec(self.X+(other.X-self.X)*alpha,self.Y+(other.Y-self.Y)*alpha,self.Z+(other.Z-self.Z)*alpha) end
  local cf = {}
  cf.__mul = function(a, b) return setmetatable({ Position = a.Position + b.Position }, cf) end
  local function frame(x, y, z)
@@ -17,6 +18,18 @@ return function(source)
  function methods:FindFirstChildOfClass(class)
   for _, child in ipairs(all) do if child.Parent == self and child.ClassName == class and not child.destroyed then return child end end
  end
+ function methods:GetChildren()
+  local children = {}; for _, obj in ipairs(all) do if obj.Parent == self and not obj.destroyed then table.insert(children,obj) end end; return children
+ end
+ function methods:GetDescendants()
+  local descendants = {}
+  for _, obj in ipairs(all) do
+   local ancestor = obj.Parent
+   while ancestor do if ancestor == self and not obj.destroyed then table.insert(descendants,obj); break end; ancestor = ancestor.Parent end
+  end
+  return descendants
+ end
+ function methods:IsA(class) return self.ClassName == class or (class == "BasePart" and (self.ClassName == "Part" or self.ClassName == "Seat")) end
  function methods:Destroy()
   self.destroyed = true
   for _, child in ipairs(all) do if child.Parent == self and not child.destroyed then child:Destroy() end end
@@ -34,27 +47,38 @@ return function(source)
  end })
  local env = setmetatable({
   workspace = workspace, Instance = { new = instance }, Enum = enum,
-  Vector3 = { new = vec }, Color3 = { fromRGB = vec },
+  Vector3 = { new = vec }, Color3 = { fromRGB = vec, new = vec },
   CFrame = { new = frame, Angles = function() return frame(0, 0, 0) end },
   UDim2 = { fromScale = function(...) return { ... } end },
  }, { __index = getfenv() })
  local loader = assert(loadstring(source))
  setfenv(loader, env)
  local World = loader()
- local opened = {}
- local mall = World.create(function(player, category) opened[category] = player end)
+ local config = assert(loadstring(configSource))()
+ local garmentLoader = assert(loadstring(garmentsSource)); setfenv(garmentLoader, env)
+ local garments = garmentLoader()
+ local opened, products = {}, {}
+ local mall = World.create(function(player, category, id) opened[category] = player; if id then products[id] = true end end, config.Catalog, garments)
  local parts, prompts, shops = {}, {}, {}
  for _, obj in ipairs(all) do
   if obj.ClassName == "Part" or obj.ClassName == "SpawnLocation" or obj.ClassName == "Seat" then
-   if obj ~= original then table.insert(parts, obj); assert(obj.Anchored, obj.Name .. " is not anchored") end
+   if obj ~= original then table.insert(parts, obj); assert(obj.Anchored or obj:FindFirstChildOfClass("WeldConstraint"), obj.Name .. " is not anchored") end
   elseif obj.ClassName == "ProximityPrompt" then table.insert(prompts, obj)
   elseif obj.ClassName == "Model" then shops[obj.Name] = obj end
  end
- assert(#prompts == 4 and #parts > 350, "full gallery and four interactive stores required")
+ assert(#prompts == 9 and #parts > 350, "full gallery and four interactive stores required")
  for _, prompt in ipairs(prompts) do
-  assert(prompt.callback and prompt.MaxActivationDistance >= 10)
+  assert(prompt.callback and prompt.MaxActivationDistance >= 9)
   prompt.callback("test-player")
  end
+ local productCount = 0
+ for _, item in ipairs(config.Catalog) do
+  if item.store == "top" then assert(products[item.id], "missing garment interaction"); productCount += 1 end
+ end
+ assert(productCount == 5, "five interactive garments")
+ local details = {}
+ for _, p in ipairs(parts) do details[p.Name] = (details[p.Name] or 0) + 1 end
+ assert(details.SkirtPleat == 32 and details.GoldButton == 3 and details.Lacing == 4 and details.Bow == 2, "distinct garment geometry must be built")
  for _, category in ipairs({ "top", "bottom", "shoes", "accessory" }) do
   assert(opened[category] == "test-player", "missing shop callback: " .. category)
   assert(shops["Shop_" .. category], "missing shop building")

@@ -7,8 +7,10 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 harness = (root / 'tests/world.luau').read_text()
 source = (root / 'src/server/World.luau').read_text()
-assert ']====]' not in source
+config = (root / 'src/shared/Config.luau').read_text()
+garments = (root / 'src/shared/Garments.luau').read_text()
+assert all(']====]' not in text for text in (source, config, garments))
 with tempfile.TemporaryDirectory() as directory:
     script = Path(directory) / 'check.luau'
-    script.write_text('local run = (function()\n' + harness + '\nend)()\nrun([====[' + source + ']====])\n')
+    script.write_text('local run = (function()\n' + harness + '\nend)()\nrun([====[' + source + ']====], [====[' + config + ']====], [====[' + garments + ']====])\n')
     subprocess.run([os.environ.get('LUAU_BIN', 'luau'), str(script)], check=True)

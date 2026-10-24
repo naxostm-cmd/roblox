@@ -7,7 +7,7 @@ local dark = Color3.fromRGB(48, 43, 55)
 local gold = Color3.fromRGB(207, 171, 105)
 local glass = Color3.fromRGB(190, 220, 225)
 local shops = {
- { category = "top", name = "ROSE ATELIER", subtitle = "GÓRA • TOPS & JACKETS", x = -42, z = 0, color = Color3.fromRGB(202, 114, 148) },
+ { category = "top", name = "ROSE ATELIER", subtitle = "FASONY • KOLORY • PRZYMIARKI", x = -42, z = 0, color = Color3.fromRGB(202, 114, 148) },
  { category = "bottom", name = "STUDIO DENIM", subtitle = "DÓŁ • TROUSERS & SKIRTS", x = 42, z = 0, color = Color3.fromRGB(96, 137, 167) },
  { category = "shoes", name = "SOLE SOCIETY", subtitle = "BUTY • SHOE BOUTIQUE", x = -42, z = 42, color = Color3.fromRGB(169, 123, 94) },
  { category = "accessory", name = "GOLDEN DETAILS", subtitle = "DODATKI • FINISH YOUR LOOK", x = 42, z = 42, color = gold },
@@ -53,17 +53,20 @@ local function plant(parent, x, z)
 end
 
 local function mannequin(parent, x, z, color)
+ local model = Instance.new("Model"); model.Name = "AtelierMannequin"; model.Parent = parent
+ parent = model
  part(parent, "DisplayPlinth", Vector3.new(4, 0.5, 4), Vector3.new(x, FLOOR + 0.25, z), cream, Enum.Material.Marble)
- part(parent, "DisplayTorso", Vector3.new(2, 2.4, 1), Vector3.new(x, FLOOR + 4, z), color)
- local head = part(parent, "DisplayHead", Vector3.new(1.2, 1.2, 1.2), Vector3.new(x, FLOOR + 5.8, z), cream)
+ part(parent, "Torso", Vector3.new(2, 2.4, 1), Vector3.new(x, FLOOR + 4, z), color)
+ local head = part(parent, "Head", Vector3.new(1.2, 1.2, 1.2), Vector3.new(x, FLOOR + 5.8, z), cream)
  head.Shape = Enum.PartType.Ball
  for _, side in ipairs({ -1, 1 }) do
-  part(parent, "DisplayLeg", Vector3.new(0.7, 2.5, 0.8), Vector3.new(x + side * 0.55, FLOOR + 1.8, z), dark)
-  part(parent, "DisplayArm", Vector3.new(0.6, 2.3, 0.7), Vector3.new(x + side * 1.4, FLOOR + 3.9, z), color)
+  part(parent, if side == -1 then "Left Leg" else "Right Leg", Vector3.new(0.7, 2.5, 0.8), Vector3.new(x + side * 0.55, FLOOR + 1.8, z), dark)
+  part(parent, if side == -1 then "Left Arm" else "Right Arm", Vector3.new(0.6, 2.3, 0.7), Vector3.new(x + side * 1.4, FLOOR + 3.9, z), color)
  end
+ return model
 end
 
-local function buildShop(parent, shop, onStore)
+local function buildShop(parent, shop, onStore, catalog, garments)
  local model = Instance.new("Model"); model.Name = "Shop_" .. shop.category; model.Parent = parent
  local x, z = shop.x, shop.z
  local inward = if x < 0 then 1 else -1
@@ -84,6 +87,7 @@ local function buildShop(parent, shop, onStore)
  part(model, "LightStrip", Vector3.new(0.4, 0.2, 31), Vector3.new(frontX + inward * 0.4, FLOOR + 16.3, z), cream, Enum.Material.Neon)
  local ceilingLight = part(model, "CeilingLight", Vector3.new(20, 0.15, 1), Vector3.new(x, FLOOR + 16.5, z), cream, Enum.Material.Neon)
  local light = Instance.new("PointLight"); light.Color = cream; light.Brightness = 0.7; light.Range = 27; light.Parent = ceilingLight
+ if shop.category ~= "top" then
  -- A rack with small garment silhouettes along the back wall.
  for _, side in ipairs({ -1, 1 }) do
   part(model, "RackPost", Vector3.new(0.2, 6, 0.2), Vector3.new(backX + inward * 3, FLOOR + 3, z + side * 7), gold, Enum.Material.Metal)
@@ -93,11 +97,38 @@ local function buildShop(parent, shop, onStore)
   local color = if i % 2 == 0 then shop.color else dark
   part(model, "HangingGarment", Vector3.new(1.7, 2.3, 0.35), Vector3.new(backX + inward * 3, FLOOR + 4.5, z + i * 2.5), color)
  end
+ end
  local counter = part(model, "Checkout", Vector3.new(5, 3, 5), Vector3.new(x, FLOOR + 1.5, z), shop.color)
  part(model, "CounterTop", Vector3.new(5.3, 0.25, 5.3), Vector3.new(x, FLOOR + 3.1, z), cream, Enum.Material.Marble)
  local prompt = Instance.new("ProximityPrompt"); prompt.ActionText = "Przymierz i kup"; prompt.ObjectText = shop.name
  prompt.MaxActivationDistance = 12; prompt.RequiresLineOfSight = false; prompt.HoldDuration = 0; prompt.Parent = counter
  prompt.Triggered:Connect(function(player) onStore(player, shop.category) end)
+ if shop.category == "top" then
+  -- A fitting alcove with an open entrance, textile curtains and a decorative mirror.
+  for _, side in ipairs({ -1, 1 }) do
+   part(model, "FittingWall", Vector3.new(0.3, 10, 8), Vector3.new(-41 + side * 5, FLOOR + 5, 11), cream)
+   part(model, "VelvetCurtain", Vector3.new(3, 9, 0.25), Vector3.new(-41 + side * 3.5, FLOOR + 4.5, 7), shop.color, Enum.Material.Fabric)
+  end
+  part(model, "MirrorFrame", Vector3.new(8, 9, 0.3), Vector3.new(-41, FLOOR + 5, 14.7), gold, Enum.Material.Metal)
+  local mirror = part(model, "DecorativeMirror", Vector3.new(7.4, 8.4, 0.15), Vector3.new(-41, FLOOR + 5, 14.45), glass, Enum.Material.Glass)
+  mirror.Reflectance = 0.35
+  sign(model, "FittingSign", "PRZYMIERZALNIA", Vector3.new(9, 1.4, 0.3), CFrame.new(-41, FLOOR + 10.8, 7), dark, gold)
+  sign(model, "CollectionSign", "ROSE ATELIER\n5 FASONÓW • 6 KOLORÓW", Vector3.new(19, 3, 0.3), CFrame.new(-56.4, FLOOR + 12, -1) * CFrame.Angles(0, -math.pi / 2, 0), shop.color)
+  if catalog and garments then
+   local index = 0
+   for _, item in ipairs(catalog) do
+    if item.store ~= "top" then continue end
+    index += 1
+    local display = mannequin(model, -52, -12 + (index - 1) * 5.6, cream)
+    local outfit = Instance.new("Folder"); outfit.Name = "SQOutfit"; outfit.Parent = display
+    garments.build(display, item, Color3.fromRGB(table.unpack(item.color)), outfit)
+    local torso = display:FindFirstChild("Torso")
+    local productPrompt = Instance.new("ProximityPrompt"); productPrompt.ObjectText = item.name .. " • " .. item.price .. " zł"
+    productPrompt.ActionText = "Fason i kolory"; productPrompt.MaxActivationDistance = 9; productPrompt.RequiresLineOfSight = false; productPrompt.Parent = torso
+    productPrompt.Triggered:Connect(function(player) onStore(player, "top", item.id) end)
+   end
+  end
+ end
 end
 
 local function buildLounge(parent)
@@ -151,7 +182,7 @@ local function buildLounge(parent)
  part(room, "ChandelierStem", Vector3.new(0.25, 2, 0.25), Vector3.new(0, FLOOR + 15, 74), gold, Enum.Material.Metal)
 end
 
-function World.create(onStore)
+function World.create(onStore, catalog, garments)
  local old = workspace:FindFirstChild("ShoppingQueenPrototype")
  if old then old:Destroy() end
  local mall = Instance.new("Folder"); mall.Name = "ShoppingQueenPrototype"; mall.Parent = workspace
@@ -177,7 +208,7 @@ function World.create(onStore)
  for z = -60, 80, 20 do
   part(mall, "RoofBeam", Vector3.new(48, 0.4, 0.4), Vector3.new(0, FLOOR + 25.2, z), gold, Enum.Material.Metal)
  end
- for _, shop in ipairs(shops) do buildShop(mall, shop, onStore) end
+ for _, shop in ipairs(shops) do buildShop(mall, shop, onStore, catalog, garments) end
  -- Stage and steps, oriented towards the audience and entrance.
  part(mall, "Runway", Vector3.new(14, 2, 29), Vector3.new(0, FLOOR + 1, -40), dark, Enum.Material.Marble)
  part(mall, "RunwayCarpet", Vector3.new(10, 0.12, 29), Vector3.new(0, FLOOR + 2.08, -40), pink, Enum.Material.Fabric)

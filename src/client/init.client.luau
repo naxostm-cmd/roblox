@@ -9,6 +9,7 @@ local Access = require(shared:WaitForChild("Access"))
 local Premium = require(shared:WaitForChild("PremiumCatalog"))
 local UiState = require(shared:WaitForChild("UiState"))
 local UI = require(script.UI)
+local FittingPreview = require(script.FittingPreview)
 local C = UI.Colors
 local remotes = ReplicatedStorage:WaitForChild("ShoppingQueen")
 local request, update = remotes:WaitForChild("Request"), remotes:WaitForChild("Update")
@@ -16,11 +17,13 @@ local gui = Instance.new("ScreenGui"); gui.Name = "ShoppingQueenUI"; gui.ResetOn
 -- Respect Roblox's safe area, top bar and device cut-outs.
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; gui.DisplayOrder = 10; gui.Parent = player:WaitForChild("PlayerGui")
 local root = UI.frame(gui, "SafeArea", UDim2.fromScale(1, 1), nil, C.Paper, 0); root.BackgroundTransparency = 1
-local state, slot, category = nil, 1, "top"
+local state, slot, category = nil, 1, "atelier"
+local fittingItem = "rose_top"
+local chosenColors = { {}, {} }
 local view, opened, detail = "home", false, nil
 local modalWidth, short = 800, false
 local render, adapt
-local categories = { { "top", "Góra" }, { "bottom", "Dół" }, { "shoes", "Buty" }, { "accessory", "Dodatki" }, { "owned", "Moje" } }
+local categories = { { "atelier", "Atelier" }, { "top", "Góra" }, { "bottom", "Dół" }, { "shoes", "Buty" }, { "accessory", "Dodatki" }, { "owned", "Moje" } }
 local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Shopping = "Czas na zakupy", Showcase = "Światła, wybieg!", Results = "Wyniki odcinka" }
 
 local hud = UI.frame(root, "RoundHUD", UDim2.fromOffset(760, 124), UDim2.new(0.5, 0, 0, 10), C.Paper, 18)
@@ -80,7 +83,18 @@ for i, entry in ipairs({ { "home", "SALON" }, { "wardrobe", "STYLIZACJE" }, { "p
  local indicator = UI.frame(dock, "Selected", UDim2.new(0.25, -30, 0, 2), UDim2.new((i - 1) * 0.25, 15, 1, -5), C.Rose, 2)
  navEntries[page] = { button = b, indicator = indicator }
 end
-local function act(action, id) request:FireServer(action, { slot = slot, id = id }) end
+local function colorKey(item)
+ return chosenColors[slot][item.id] or (state and state.looks[slot][item.category] == item.id and state.looks[slot].colors and state.looks[slot].colors[item.category]) or item.colorKey or "rose"
+end
+local function paletteColor(key)
+ for _, entry in ipairs(Config.Palette) do if entry.id == key then return Color3.fromRGB(table.unpack(entry.rgb)) end end
+ return C.Rose
+end
+local function act(action, id)
+ local color
+ for _, item in ipairs(Config.Catalog) do if item.id == id then color = colorKey(item) end end
+ request:FireServer(action, { slot = slot, id = id, color = color })
+end
 local order = 0
 local function block(height, color)
  order += 1
@@ -151,7 +165,7 @@ local function premiumPage()
 end
 local function wardrobePage()
  if not state or not Access.canBrowse(state.phase, state.participating) then loungePage(); return end
- heading.Text = "Twoja garderoba"; subtitle.Text = "BUDŻET RUNDY: " .. state.budget .. " ZŁ • ZAPISZ OBIE STYLIZACJE"
+ heading.Text = if category == "atelier" then "Rose Atelier" else "Twoja garderoba"; subtitle.Text = "BUDŻET RUNDY: " .. state.budget .. " ZŁ • ZAPISZ OBIE STYLIZACJE"
  local slots = block(46); slots.BackgroundTransparency = 1
  for index = 1, 2 do
   local chosen = index
@@ -164,19 +178,45 @@ local function wardrobePage()
  local tabs = block(36); tabs.BackgroundTransparency = 1
  for index, pair in ipairs(categories) do
   local chosenCategory = pair[1]
-  UI.button(tabs, pair[2], UDim2.new(0.2, -4, 0, 34), UDim2.fromScale((index - 1) * 0.2, 0), function() category = chosenCategory; render() end, if category == pair[1] then nil else "light")
+  UI.button(tabs, pair[2], UDim2.new(1 / #categories, -4, 0, 34), UDim2.fromScale((index - 1) / #categories, 0), function() category = chosenCategory; render() end, if category == pair[1] then nil else "light")
+ end
+ local previewItem
+ for _, item in ipairs(Config.Catalog) do if item.id == fittingItem then previewItem = item end end
+ if previewItem and previewItem.style then
+  local fitting = block(280, C.Blush)
+  local pane = UI.frame(fitting, "AvatarPreview", UDim2.new(0.5, -16, 1, -16), UDim2.fromOffset(8, 8), C.Paper, 12)
+  local rotate = FittingPreview.mount(pane, player.Character, previewItem, paletteColor(colorKey(previewItem)))
+  if not rotate then UI.text(pane, "Poczekaj na załadowanie postaci", UDim2.fromScale(1, 1), nil, 13) end
+  UI.text(fitting, previewItem.name, UDim2.new(0.5, -12, 0, 48), UDim2.new(0.5, 0, 0, 10), 17, C.Ink, true)
+  UI.text(fitting, "Kolor: " .. (function() for _, c in ipairs(Config.Palette) do if c.id == colorKey(previewItem) then return c.name end end return "domyślny" end)() .. "\nPodgląd przed przymiarką", UDim2.new(0.5, -12, 0, 46), UDim2.new(0.5, 0, 0, 60), 12, C.Muted)
+  for i, entry in ipairs(Config.Palette) do
+   local selectedColor = entry.id
+   local b = Instance.new("TextButton"); b.Name = entry.name
+   b.Text = if colorKey(previewItem) == entry.id then "✓" else ""
+   b.Size = UDim2.new(1 / 6, -7, 0, 32); b.Position = UDim2.new(0.5 + ((i - 1) % 3) / 6, 0, 0, 112 + math.floor((i - 1) / 3) * 38)
+   b.BackgroundColor3 = Color3.fromRGB(table.unpack(entry.rgb)); b.TextColor3 = if entry.id == "black" then C.White else C.Ink
+   b.BorderSizePixel = 0; b.TextSize = 20; b.Parent = fitting; UI.corner(b, 8); UI.stroke(b)
+   b.Activated:Connect(function() chosenColors[slot][previewItem.id] = selectedColor; render() end)
+  end
+  UI.button(fitting, "Przymierz na postaci", UDim2.new(0.5, -12, 0, 36), UDim2.new(0.5, 0, 0, 194), function() act("Try", previewItem.id) end)
+  UI.button(fitting, "↶", UDim2.new(0.25, -10, 0, 30), UDim2.new(0, 8, 1, -38), function() if rotate then rotate(-1) end end, "light")
+  UI.button(fitting, "↷", UDim2.new(0.25, -10, 0, 30), UDim2.new(0.25, 0, 1, -38), function() if rotate then rotate(1) end end, "light")
+  UI.button(fitting, "Zakończ przymiarkę", UDim2.new(0.5, -12, 0, 30), UDim2.new(0.5, 0, 0, 238), function() act("Slot") end, "light")
  end
  local count = 0
  for _, item in ipairs(Config.Catalog) do
-  if category ~= item.category and not (category == "owned" and state.owned[item.id]) then continue end
+  if category ~= item.category and not (category == "owned" and state.owned[item.id]) and not (category == "atelier" and item.store == "top") then continue end
   count += 1
   local id = item.id
   local selected, owned = state.looks[slot][item.category] == id, state.owned[id]
-  local card = block(126); UI.stroke(card)
-  local swatch = UI.frame(card, "Swatch", UDim2.fromOffset(40, 40), UDim2.fromOffset(12, 12), Color3.fromRGB(table.unpack(item.color)), 10)
+  local card = block(if item.style then 172 else 126); UI.stroke(card)
+  local swatch = UI.frame(card, "Swatch", UDim2.fromOffset(40, 40), UDim2.fromOffset(12, 12), if item.style then paletteColor(colorKey(item)) else Color3.fromRGB(table.unpack(item.color)), 10)
   UI.gradient(swatch, swatch.BackgroundColor3, swatch.BackgroundColor3:Lerp(C.White, 0.3))
   UI.text(card, item.name, UDim2.new(1, -76, 0, 24), UDim2.fromOffset(64, 10), 16, C.Ink, true)
   UI.text(card, if selected then "W TWOIM ZESTAWIE" elseif owned then "W TWOJEJ GARDEROBIE" else item.price .. " zł / budżet rundy", UDim2.new(1, -76, 0, 22), UDim2.fromOffset(64, 34), 11, if owned then C.Green else C.Muted)
+  if item.style then
+   UI.button(card, "Fason i kolory →", UDim2.new(1, -24, 0, 32), UDim2.fromOffset(12, 126), function() fittingItem = item.id; content.CanvasPosition = Vector2.zero; render() end, "light")
+  end
   if owned then
    UI.button(card, if selected then "Wybrano / wybierz ponownie" else "Dodaj do zestawu " .. slot, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 74), function() act("Equip", id) end, "light")
   else
@@ -292,8 +332,9 @@ update.OnClientEvent:Connect(function(packet)
  local previous = state
  view, opened = UiState.receive(previous, packet, view, opened)
  state = packet
- if packet.store then category = packet.store end
- if not previous or previous.round ~= packet.round then slot = 1 end
+ if packet.fittingItem then fittingItem = packet.fittingItem end
+ if packet.store then category = if packet.store == "top" then "atelier" else packet.store end
+ if not previous or previous.round ~= packet.round then slot = 1; chosenColors = { {}, {} } end
  if packet.message then message(packet.message) end
  if packet.phase == "Shopping" and (not previous or previous.phase ~= "Shopping") and packet.participating then
   message("Twój moment! Wejdź do butików, kup produkty i zapisz dwa zestawy.")
