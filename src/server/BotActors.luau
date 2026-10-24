@@ -73,7 +73,7 @@ function BotActors.spawn(folder, name, cf, rng)
 	local root = model:FindFirstChild("HumanoidRootPart")
 	if root then pcall(function() root:SetNetworkOwner(nil) end) end
 	animate(humanoid)
-	return model
+	return model, description
 end
 
 -- Walks with pathfinding; teleports to the target when blocked or stuck, so a

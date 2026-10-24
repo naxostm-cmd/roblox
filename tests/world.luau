@@ -255,7 +255,8 @@ return function(source, configSource, garmentsSource, mallSource)
 	local designs = {}
 	local seed = 42
 	local allRng = { NextInteger = function(_, low, high) seed = (seed * 16807) % 2147483647; return low + seed % (high - low + 1) end }
-	for _ = 1, 100 do for _, item in ipairs(Mall.generate(allRng, nil, config.Palette)) do designs[item.style] = item end end
+	for _ = 1, 100 do for _, item in ipairs(Mall.generate(allRng, nil, config.Palette)) do designs[item.key] = item end end
+	local total = 0; for _, pool in pairs(Mall.Pools) do total += #pool end
 	for _, rigType in ipairs({ "R6", "R15" }) do
 		local rig = instance("Model"); rig.Parent = workspace
 		local names = if rigType == "R6" then { "Torso", "Head", "Left Arm", "Right Arm", "Left Leg", "Right Leg" } else { "UpperTorso", "LowerTorso", "Head", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot" }
@@ -272,9 +273,9 @@ return function(source, configSource, garmentsSource, mallSource)
 			end
 			count += 1; outfit:Destroy()
 		end
-		assert(count == 42); rig:Destroy()
+		assert(count == total); rig:Destroy()
 	end
-	print("PASS: all 42 garment designs construct on R6 and R15 stand-ins")
+	print("PASS: R6/R15 part fallbacks construct for all " .. total .. " catalog items")
 	local shopModels = {}
 	for _, obj in ipairs(all) do if obj.ClassName == "Model" and not obj.destroyed then shopModels[obj.Name] = obj end end
 	local previousStock = {}

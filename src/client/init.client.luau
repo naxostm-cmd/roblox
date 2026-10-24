@@ -130,6 +130,17 @@ local function paletteColor(key)
 	for _, entry in ipairs(Config.Palette) do if entry.id == key then return Color3.fromRGB(table.unpack(entry.rgb)) end end
 	return C.Rose
 end
+-- Real catalog items render on R15 avatars; R6 shows the simplified part model.
+local function realItem(item)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	return item.assets ~= nil and humanoid ~= nil and humanoid.RigType == Enum.HumanoidRigType.R15
+end
+local function thumbnail(parent, item, size, position)
+	local image = Instance.new("ImageLabel"); image.Name = "CatalogThumbnail"; image.BackgroundTransparency = 1
+	image.Size = size; image.Position = position or UDim2.new(); image.Image = item.thumb; image.ScaleType = Enum.ScaleType.Fit
+	image.Parent = parent
+	return image
+end
 local function act(action, id)
 	local color
 	for _, item in ipairs((state and state.catalog or {})) do if item.id == id then color = colorKey(item) end end
@@ -280,14 +291,22 @@ local function wardrobePage()
 		local fitting = block(290, C.CardHi); UI.stroke(fitting, C.Rose, 0.6)
 		local pane = UI.frame(fitting, "AvatarPreview", UDim2.new(0.5, -16, 1, -16), UDim2.fromOffset(8, 8), C.Ink, 14)
 		UI.gradient(pane, Color3.fromRGB(70, 44, 84), C.Ink, 90)
-		local rotate = FittingPreview.mount(pane, player.Character, previewItem, paletteColor(colorKey(previewItem)))
-		if not rotate then UI.text(pane, "Poczekaj na załadowanie postaci", UDim2.fromScale(1, 1), nil, 14, C.Sub) end
+		local real = realItem(previewItem)
+		local rotate
+		if real then
+			pane.BackgroundColor3 = C.White; UI.gradient(pane, Color3.fromRGB(255, 244, 250), Color3.fromRGB(226, 210, 240), 90)
+			thumbnail(pane, previewItem, UDim2.new(1, -24, 1, -40), UDim2.fromOffset(12, 8))
+			UI.badge(pane, "KATALOG ROBLOX", UDim2.fromOffset(130, 24), UDim2.new(0.5, -65, 1, -32), C.Ink, C.Gold)
+		else
+			rotate = FittingPreview.mount(pane, player.Character, previewItem, paletteColor(colorKey(previewItem)))
+			if not rotate then UI.text(pane, "Poczekaj na załadowanie postaci", UDim2.fromScale(1, 1), nil, 14, C.Sub) end
+		end
 		UI.text(fitting, (icons[previewItem.category] or "") .. " " .. previewItem.name, UDim2.new(0.5, -12, 0, 30), UDim2.new(0.5, 0, 0, 10), 19, C.Text, "title")
 		local colorName = "domyślny"
 		for _, c in ipairs(Config.Palette) do if c.id == colorKey(previewItem) then colorName = c.name end end
-		UI.text(fitting, previewItem.price .. " zł • kolor: " .. colorName, UDim2.new(0.5, -12, 0, 22), UDim2.new(0.5, 0, 0, 42), 14, C.Gold, "strong")
-		UI.text(fitting, "Wybierz kolor — zmiana jest bezpłatna", UDim2.new(0.5, -12, 0, 20), UDim2.new(0.5, 0, 0, 66), 13, C.Sub)
-		for i, entry in ipairs(Config.Palette) do
+		UI.text(fitting, previewItem.price .. " zł" .. (if real then " • oryginalny kolor" else " • kolor: " .. colorName), UDim2.new(0.5, -12, 0, 22), UDim2.new(0.5, 0, 0, 42), 14, C.Gold, "strong")
+		UI.text(fitting, if real then "Prawdziwy przedmiot z katalogu Roblox. Przymierz go — zobaczysz go na swojej postaci." else "Wybierz kolor — zmiana jest bezpłatna", UDim2.new(0.5, -12, 0, if real then 60 else 20), UDim2.new(0.5, 0, 0, 66), 13, C.Sub)
+		for i, entry in ipairs(if real then {} else Config.Palette) do
 			local selectedColor = entry.id
 			local b = Instance.new("TextButton"); b.Name = entry.name
 			b.Text = if colorKey(previewItem) == entry.id then "✓" else ""
@@ -299,8 +318,10 @@ local function wardrobePage()
 		end
 		UI.button(fitting, "👗 Przymierz na postaci", UDim2.new(0.5, -12, 0, 38), UDim2.new(0.5, 0, 0, 180), function() act("Try", previewItem.id) end)
 		UI.button(fitting, "Zakończ przymiarkę", UDim2.new(0.5, -12, 0, 34), UDim2.new(0.5, 0, 0, 226), function() act("Slot") end, "light")
-		UI.button(fitting, "↶", UDim2.new(0.25, -12, 0, 32), UDim2.new(0, 12, 1, -44), function() if rotate then rotate(-1) end end, "light")
-		UI.button(fitting, "↷", UDim2.new(0.25, -12, 0, 32), UDim2.new(0.25, -4, 1, -44), function() if rotate then rotate(1) end end, "light")
+		if rotate then
+			UI.button(fitting, "↶", UDim2.new(0.25, -12, 0, 32), UDim2.new(0, 12, 1, -44), function() rotate(-1) end, "light")
+			UI.button(fitting, "↷", UDim2.new(0.25, -12, 0, 32), UDim2.new(0.25, -4, 1, -44), function() rotate(1) end, "light")
+		end
 	end
 	local items = {}
 	for _, item in ipairs((state and state.catalog or {})) do
@@ -319,14 +340,19 @@ local function wardrobePage()
 			UI.stroke(card, if selected then C.Gold elseif owned then C.Green else C.Line, if selected or owned then 0.3 else 0.86, if selected then 2 else 1)
 			local tint = paletteColor(colorKey(item))
 			local swatch = UI.frame(card, "Swatch", UDim2.fromOffset(64, 64), UDim2.fromOffset(12, 12), C.White, 14)
-			UI.gradient(swatch, tint, tint:Lerp(C.Ink, 0.35), 45)
-			local glyph = UI.text(swatch, icons[item.category] or "✦", UDim2.fromScale(1, 1), nil, 30, C.White); glyph.TextXAlignment = Enum.TextXAlignment.Center
+			if item.thumb then
+				UI.gradient(swatch, Color3.fromRGB(255, 244, 250), Color3.fromRGB(226, 210, 240), 90)
+				thumbnail(swatch, item, UDim2.new(1, -6, 1, -6), UDim2.fromOffset(3, 3))
+			else
+				UI.gradient(swatch, tint, tint:Lerp(C.Ink, 0.35), 45)
+				local glyph = UI.text(swatch, icons[item.category] or "✦", UDim2.fromScale(1, 1), nil, 30, C.White); glyph.TextXAlignment = Enum.TextXAlignment.Center
+			end
 			UI.text(card, item.name, UDim2.new(1, -96, 0, 24), UDim2.fromOffset(86, 12), 17, C.Text, "bold")
 			local priceChip = UI.frame(card, "Price", UDim2.fromOffset(84, 24), UDim2.fromOffset(86, 40), C.Ink, 8)
 			local priceText = UI.text(priceChip, item.price .. " zł", UDim2.fromScale(1, 1), nil, 14, C.Gold, "title"); priceText.TextXAlignment = Enum.TextXAlignment.Center
 			local status = if selected then "✓ W ZESTAWIE " .. slot elseif owned then "✓ W GARDEROBIE" else Mall.store(item.store).name
 			UI.text(card, status, UDim2.new(1, -96, 0, 18), UDim2.fromOffset(86, 68), 13, if owned then C.Green else C.Sub, "strong")
-			UI.button(card, "🎨 Fason i kolory", UDim2.new(1, -24, 0, 36), UDim2.fromOffset(12, 108), function() fittingItem = item.id; content.CanvasPosition = Vector2.zero; render() end, "light")
+			UI.button(card, if realItem(item) then "🔍 Podgląd" else "🎨 Fason i kolory", UDim2.new(1, -24, 0, 36), UDim2.fromOffset(12, 108), function() fittingItem = item.id; content.CanvasPosition = Vector2.zero; render() end, "light")
 			if owned then
 				UI.button(card, if selected then "Wybrano • dodaj ponownie" else "➕ Dodaj do zestawu " .. slot, UDim2.new(1, -24, 0, 40), UDim2.fromOffset(12, 156), function() act("Equip", id) end, "gold")
 			else

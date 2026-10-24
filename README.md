@@ -35,7 +35,7 @@ Generator zarządza wyłącznie `Workspace.ShoppingQueenPrototype` (~2800 częś
 
 Lokale kursywą są dekoracyjne: mają wystrój, ale nic w nich nie sprzedajemy. Każdy butik ma szklaną witrynę z manekinami, szyld, neon, oświetlenie oraz trzy aktualne produkty. Sklepy z ubraniami mają wieszaki, przymierzalnię i lustro, a sklepy z dodatkami półki i gablotę.
 
-**Oferta jest losowana na początku każdej rundy.** Każdy lokal ma trzy produkty z puli sześciu fasonów swojej kategorii, łącznie 60 ofert z 42 wzorów. Każdy sklep zmienia co najmniej jeden fason względem poprzedniej rundy. Wszyscy widzą tę samą ofertę i ceny. Kupować i przymierzać można tylko wewnątrz sklepu lub tuż przed jego wejściem, na tym samym piętrze.
+**Oferta jest losowana na początku każdej rundy.** Każdy lokal ma trzy produkty z puli swojej kategorii (8–12 przedmiotów), łącznie 60 ofert z 66 przedmiotów. Każdy sklep zmienia co najmniej jeden fason względem poprzedniej rundy. Wszyscy widzą tę samą ofertę i ceny. Kupować i przymierzać można tylko wewnątrz sklepu lub tuż przed jego wejściem, na tym samym piętrze.
 
 ## Tryb z botami
 
@@ -48,12 +48,30 @@ Boty prezentują oba zestawy i głosują raz na pokaz, nigdy na siebie. Oceny s�
 ## Zakupy, stylizacje i przebieg rundy
 
 - **Sklepy** w dolnym menu otwierają mapę galerii z podziałem na piętra. Wybierz sklep i „Oferta”, albo podejdź do lady lub manekina i użyj E.
-- **Fason i kolory** otwiera obracany podgląd produktu na kopii awatara. Dostępnych jest 6 kolorów, zmiana jest bezpłatna.
+- **Podgląd** pokazuje miniaturkę prawdziwego produktu; na awatarze R6 obracany podgląd uproszczonej wersji z wyborem 6 kolorów.
 - **Przymierz na postaci** zakłada produkt, ale nie zmienia budżetu ani zestawu. **Zakończ przymiarkę** przywraca aktualny zestaw.
 - Kup produkt, dodaj go do zestawu 1 lub 2 i zapisz. Każdy zestaw wymaga góry i dołu. Dodatki (buty, nakrycie głowy, torebka, biżuteria, okulary) można łączyć.
 - Pokazy: każda uczestniczka prezentuje zestaw 1, potem wszystkie zestaw 2; na ocenę jest 15 sekund. Wynik to średnia z dwóch pokazów, remisy dają wspólne miejsca. Wyniki są widoczne przez 20 sekund.
 
-Ubrania i dodatki to własne stylizowane modele z dopasowanych części, bez uploadów assetów. To nie symulacja tkaniny.
+## Prawdziwe ubrania z katalogu Roblox
+
+Asortyment to **66 prawdziwych przedmiotów z katalogu Roblox** (`Mall.Pools`):
+- 12 gór: bluzki, swetry, trencz, ramoneska, kurtka jeansowa, płaszcz;
+- 10 dołów: spódnice z falbaną, szyfonowe, tenisowa, spodnie, szorty;
+- 10 par butów;
+- 9 nakryć głowy: berety, kapelusze, tiary;
+- 9 torebek;
+- 8 sztuk biżuterii;
+- 8 par okularów.
+
+Ubrania, buty i okulary są w większości dziełem samego Robloxa (layered clothing). Torebki, biżuteria i część kapeluszy to popularne przedmioty twórców UGC. Nikt nie musi ich posiadać: gra zakłada je przez `HumanoidDescription`, tak jak gry typu avatar editor. Nic nie trzeba uploadować.
+
+- **Awatary R15 i boty** noszą prawdziwe przedmioty. Zakupiony element zastępuje to, co postać miała w tym samym miejscu (np. własną koszulkę lub kapelusz). Włosy, twarz i kolor skóry zostają.
+- **Manekiny w sklepach** stoją w prawdziwych ubraniach. Karty produktów i podgląd pokazują oficjalne miniaturki z katalogu (`rbxthumb://`).
+- Przedmioty z katalogu mają **oryginalny kolor**, więc wybór koloru dotyczy tylko wersji uproszczonej.
+- **Awatary R6** (ubrania warstwowe działają tylko na R15) i przedmioty, które zniknęłyby z katalogu, dostają wbudowane modele z części. Serwer sprawdza wszystkie ID przy starcie (`Appearance.validate`).
+
+Aby dodać lub wymienić przedmiot, dopisz w `Mall.Pools` wpis `{ klucz, nazwa, cena, styl zapasowy, { A(assetId, "TypAkcesorium") } }`. Typy: Shirt, TShirt, Sweater, Jacket, Pants, Shorts, DressSkirt, Hat, Face, Neck, Front, Shoulder; buty to `shoes(lewy, prawy)` + ID paczki.
 
 ## GUI i muzyka
 
@@ -73,10 +91,11 @@ Muzyka gra lokalnie i zmienia się z fazą gry: spokojna w poczekalni, rytmiczna
 
 ## Kod i testy
 
-- `src/shared/Mall.luau`: lokale, rozmieszczenie na piętrach i w skrzydłach, 42 wzory i losowanie oferty.
+- `src/shared/Mall.luau`: lokale, rozmieszczenie, 66 przedmiotów z katalogu i losowanie oferty.
 - `src/shared/BotLogic.luau`: plan zakupów botów i symulowane oceny (czysta logika, testowana).
 - `src/shared/Config.luau`: czas, budżet, skład rundy, imiona botów, muzyka, tematy i paleta.
-- `src/shared/Garments.luau` i `Rules.luau`: geometria ubrań oraz reguły budżetu, zestawów i głosów.
+- `src/shared/Garments.luau` i `Rules.luau`: zapasowe modele ubrań oraz reguły budżetu, zestawów i głosów.
+- `src/server/Appearance.luau`: zakładanie przedmiotów z katalogu, manekiny i walidacja ID.
 - `src/server/World.luau`: generator galerii, automatyczne drzwi, wymiana ekspozycji.
 - `src/server/BotActors.luau`: postacie botów, chodzenie i animacje.
 - `src/server/init.server.luau`: zapisy, przebieg rundy, boty, pokazy i wyniki.
@@ -98,7 +117,7 @@ rojo build -o "Ola Roblox.rbxlx"
 - wolne wejście do każdego z 20 sklepów oraz zasięg zakupu ograniczony do jednego sklepu i jednego piętra;
 - 87 interakcji, ruchome schody i schody;
 - szczelny salon i odświeżanie ekspozycji;
-- wszystkie 42 wzory na modelach R6/R15.
+- modele zapasowe wszystkich 66 przedmiotów na R6/R15.
 
 `bots.luau` odtwarza 300 planów zakupowych botów przez prawdziwe reguły. Testy nie uruchamiają silnika Roblox: renderowanie, fizykę, pathfinding i animacje trzeba sprawdzić w Studio.
 
@@ -106,7 +125,7 @@ rojo build -o "Ola Roblox.rbxlx"
 
 1. Jednym klientem: wejście drzwiami i przyciskiem, 5 s odliczania, przeniesienie z kanapy, automatyczne drzwi, 1500 zł i 8 minut. Powinny pojawić się trzy postacie [BOT].
 2. Sprawdź ruchome schody i schody w obu kierunkach, kładki, balustrady i food court. Sprawdź, czy boty dochodzą do sklepów na obu piętrach i kompletują zestawy.
-3. Zakup z daleka, z innego piętra lub w niewłaściwym sklepie ma być odrzucony. Przetestuj przymiarkę, kolory, dwa zapisane zestawy i reset postaci.
+3. Sprawdź manekiny i miniaturki z katalogu, przymiarkę i noszenie prawdziwych ubrań (R15) oraz wersję uproszczoną na awatarze R6. Zakup z daleka, z innego piętra lub w niewłaściwym sklepie ma być odrzucony. Przetestuj przymiarkę, kolory, dwa zapisane zestawy i reset postaci.
 4. Przejdź pełną rundę: pokazy botów i gracza, głosowanie, ranking i powrót do salonu. W następnej rundzie oferta ma się zmienić, a stare boty zniknąć.
 5. Drugim klientem sprawdź zapis w trakcie odliczania i zapis na następną rundę.
 6. Sprawdź muzykę i jej wyciszanie, czytelność GUI na telefonie (emulator) oraz klatkaż w całej galerii.

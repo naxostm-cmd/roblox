@@ -10,6 +10,9 @@ local Garments = require(ReplicatedStorage.Shared.Garments)
 World.configure(Mall.Stores, Mall.Decor)
 local Appearance = require(script.Appearance)
 local BotActors = require(script.BotActors)
+-- Store mannequins and avatars wear real catalog items (see Mall pools).
+World.CatalogMannequin = Appearance.mannequin
+task.spawn(Appearance.validate, Mall.Pools)
 
 local remotes = Instance.new("Folder"); remotes.Name = "ShoppingQueen"; remotes.Parent = ReplicatedStorage
 local request = Instance.new("RemoteEvent"); request.Name = "Request"; request.Parent = remotes
@@ -305,7 +308,7 @@ local function reset()
 		if entrant.bot and entrant.model then entrant.model:Destroy() end
 	end
 	for _, player in ipairs(Players:GetPlayers()) do
-		Appearance.apply(player.Character, nil, activeCatalog)
+		task.spawn(Appearance.apply, player.Character, nil, activeCatalog)
 		move(player, World.Lobby, false)
 	end
 	entrants = {}; data = {}
@@ -336,7 +339,8 @@ while true do
 		local id = -i
 		-- Bots start inside the entrance hall, so closed doors never block their path.
 		local start = CFrame.new(((i - 1) % 4 - 1.5) * 4, World.FLOOR + 4, 52 - math.floor((i - 1) / 4) * 4)
-		local model = BotActors.spawn(World.BotFolder, names[i], start, rng)
+		local model, description = BotActors.spawn(World.BotFolder, names[i], start, rng)
+		if model then Appearance.setBase(model, description) end
 		table.insert(entrants, { id = id, name = "[BOT] " .. names[i], bot = true, model = model })
 		data[id] = newData()
 	end
@@ -353,7 +357,7 @@ while true do
 		index += 1
 		move(entrant.player, World.ShoppingStart * CFrame.new(((index - 1) % 4 - 1.5) * 3, 0, math.floor((index - 1) / 4) * 4), false)
 	end
-	for _, player in ipairs(Players:GetPlayers()) do displayFor(player) end
+	for _, player in ipairs(Players:GetPlayers()) do task.spawn(displayFor, player) end
 	local round = state.round
 	for _, entrant in ipairs(entrants) do
 		if entrant.bot and entrant.model then task.defer(runBot, entrant, round) end
@@ -365,15 +369,16 @@ while true do
 			if not humansPresent() then aborted = true; break end
 			if not present(entrant) then continue end
 			state.phase = "Showcase"; state.presenter = entrant.id; state.slot = slot; state.showId += 1; votes = {}
+			-- Outfit changes load assets; run them in parallel, the queue keeps the latest.
 			for _, viewer in ipairs(Players:GetPlayers()) do
-				Appearance.apply(viewer.Character, nil, activeCatalog)
+				task.spawn(Appearance.apply, viewer.Character, nil, activeCatalog)
 				move(viewer, World.Lobby, false)
 			end
 			local waitingIndex = 0
 			for _, other in ipairs(entrants) do
 				if other.bot and other ~= entrant then
 					waitingIndex += 1
-					Appearance.apply(other.model, nil, activeCatalog)
+					task.spawn(Appearance.apply, other.model, nil, activeCatalog)
 					BotActors.place(other.model, backstage(waitingIndex), false)
 				end
 			end
@@ -407,6 +412,6 @@ while true do
 	end
 	state.results = Rules.rank(entries)
 	state.phase = "Results"; state.presenter = 0; state.slot = 0; votes = {}
-	for _, player in ipairs(Players:GetPlayers()) do Appearance.apply(player.Character, nil, activeCatalog); move(player, World.Lobby, false) end
+	for _, player in ipairs(Players:GetPlayers()) do task.spawn(Appearance.apply, player.Character, nil, activeCatalog); move(player, World.Lobby, false) end
 	countdown(Config.ResultsSeconds)
 end

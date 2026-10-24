@@ -14,6 +14,14 @@ local seed = 1234
 local rng = {NextInteger = function(_, low, high) seed = (seed*16807)%2147483647; return low + seed%(high-low+1) end}
 local previous, previousSets = nil, {}
 local offeredStyles = {}
+local validTypes = { Shirt = true, TShirt = true, Sweater = true, Jacket = true, Pants = true, Shorts = true, DressSkirt = true, LeftShoe = true, RightShoe = true, Hat = true, Face = true, Neck = true, Front = true, Shoulder = true }
+local poolSize, assetIds = 0, {}
+for category, pool in pairs(Mall.Pools) do
+ for _, template in ipairs(pool) do
+  poolSize += 1
+  for _, asset in ipairs(template[5]) do assert(not assetIds[asset.id], "duplicate asset " .. asset.id); assetIds[asset.id] = true end
+ end
+end
 for round=1,100 do
  local catalog = Mall.generate(rng,previous,Config.Palette)
  assert(#catalog == 60)
@@ -24,7 +32,10 @@ for round=1,100 do
   assert(item.price > 0 and item.price%1 == 0)
   assert(Rules.color(Config.Palette,item.colorKey))
   sets[item.store] = sets[item.store] or {}; table.insert(sets[item.store],item.id)
-  offeredStyles[item.style] = true
+  offeredStyles[item.key] = true
+  assert(item.style and item.thumb and #item.assets >= 1, "catalog item with fallback, thumbnail and assets")
+  for _, asset in ipairs(item.assets) do assert(type(asset.id) == "number" and asset.id > 0 and validTypes[asset.type], "asset " .. item.id) end
+  if item.category == "shoes" then assert(#item.assets == 2 and item.assets[1].type == "LeftShoe" and item.assets[2].type == "RightShoe", "shoe pair") end
   if item.category == "top" then minTop=math.min(minTop,item.price) end
   if item.category == "bottom" then minBottom=math.min(minBottom,item.price) end
  end
@@ -37,7 +48,7 @@ for round=1,100 do
  previous=catalog
 end
 local styles=0; for _ in pairs(offeredStyles) do styles+=1 end
-assert(styles == 42, "all 42 designs can appear")
+assert(styles == poolSize and poolSize >= 60, "every catalog item can appear")
 -- Worst case: RNG repeats exactly; selection must still change in every shop.
 local fixed = {NextInteger=function(_,low) return low end}
 local first = Mall.generate(fixed,nil,Config.Palette)
@@ -61,4 +72,4 @@ assert(Rules.save(data,1))
 local removed
 for _, item in ipairs(first) do if not Rules.item(second,item.id) then removed=item; break end end
 assert(removed and not Rules.preview(data,second,1,removed.id,"blue",Config.Palette), "old withdrawn offer cannot be previewed from new catalogue")
-print("PASS: 100 rounds, 20 stores, 60 offers, 42 designs, fair budget, guaranteed stock changes")
+print("PASS: 100 rounds, 20 stores, 60 offers, " .. poolSize .. " real catalog items, fair budget, guaranteed stock changes")

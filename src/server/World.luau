@@ -317,8 +317,20 @@ function World.refreshStock(catalog, garments, onStore)
 			garments.build(display, item, Color3.fromRGB(table.unpack(item.color)), outfit)
 			local torso = display:FindFirstChild("Torso")
 			local prompt = Instance.new("ProximityPrompt"); prompt.ObjectText = item.name .. " • " .. item.price .. " zł"
-			prompt.ActionText = "Fason i kolory"; prompt.MaxActivationDistance = 9; prompt.RequiresLineOfSight = false; prompt.Parent = torso
+			prompt.ActionText = "Zobacz i przymierz"; prompt.MaxActivationDistance = 9; prompt.RequiresLineOfSight = false; prompt.Parent = torso
 			prompt.Triggered:Connect(function(player) onStore(player, shop.id, item.id) end)
+			-- Swap in a mannequin wearing the real catalog item once it has loaded;
+			-- the part figure stays (invisible) as the prompt anchor and fallback.
+			if World.CatalogMannequin and item.assets then
+				local cf = displays[shop.id][index]
+				task.spawn(function()
+					local real = World.CatalogMannequin(item, cf, display)
+					if not real or stock.Parent == nil then return end
+					for _, object in ipairs(display:GetDescendants()) do
+						if object:IsA("BasePart") and object.Name ~= "DisplayPlinth" and not object:IsDescendantOf(real) then object.Transparency = 1 end
+					end
+				end)
+			end
 		end
 	end
 end
