@@ -2,6 +2,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Rules = require(ReplicatedStorage.Shared.Rules)
+local Access = require(ReplicatedStorage.Shared.Access)
 local World = require(script.World)
 local Appearance = require(script.Appearance)
 
@@ -33,6 +34,7 @@ local function send(player, message, store)
 		if participant.Parent == Players then table.insert(roster, { userId = participant.UserId, name = participant.DisplayName }) end
 	end
 	update:FireClient(player, {
+		playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
 		phase = state.phase, endsAt = state.endsAt, round = state.round, themes = state.themes,
 		presenter = state.presenter, slot = state.slot, showId = state.showId, results = state.results,
 		roster = roster, participating = own ~= nil, budget = if own then own.budget else 0,
@@ -74,6 +76,8 @@ local function setupPlayer(player)
 			if player:HasAppearanceLoaded() then displayFor(player) end
 		end
 	end)
+	if player.Character then move(player, World.Lobby, false) end
+	task.defer(broadcast)
 end
 Players.PlayerAdded:Connect(setupPlayer)
 for _, player in ipairs(Players:GetPlayers()) do setupPlayer(player) end
@@ -84,7 +88,8 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 World.create(function(player, category)
-	if state.phase == "Shopping" and data[player.UserId] then send(player, nil, category) end
+	if Access.canBrowse(state.phase) then send(player, nil, category)
+	else send(player, "Sklepy otworzą się po pokazach.") end
 end)
 
 request.OnServerEvent:Connect(function(player, action, payload)
@@ -95,6 +100,17 @@ request.OnServerEvent:Connect(function(player, action, payload)
 	if action == "Sync" then send(player); return end
 	if type(payload) ~= "table" then return end
 	local own = data[player.UserId]
+	if action == "Try" and Access.canTry(state.phase, false) then
+		if type(payload.id) ~= "string" or #payload.id > 64 then return end
+		local item = Rules.item(Config.Catalog, payload.id)
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if not item or not root then return end
+		if (root.Position - World.StorePositions[item.category]).Magnitude > Config.StoreDistance then
+			send(player, "Wejdź do odpowiedniego butiku, żeby przymierzyć produkt."); return
+		end
+		Appearance.apply(player.Character, { [item.category] = item.id }, Config.Catalog)
+		send(player, "Bezpłatna przymiarka. Budżet i zakupy ruszą w rundzie od dwóch osób."); return
+	end
 	if not own then send(player, "Dołączysz do następnej rundy."); return end
 	if action == "Vote" then
 		if state.phase ~= "Showcase" or workspace:GetServerTimeNow() >= state.endsAt or payload.showId ~= state.showId then
@@ -176,6 +192,7 @@ while true do
 	if second >= first then second += 1 end
 	state.themes = { Config.Themes[first], Config.Themes[second] }; state.round += 1
 	state.phase = "Shopping"
+	for _, player in ipairs(Players:GetPlayers()) do displayFor(player) end
 	if not countdown(Config.ShoppingSeconds, enough) then continue end
 	local aborted = false
 	for slot = 1, 2 do

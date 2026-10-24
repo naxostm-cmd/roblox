@@ -57,4 +57,11 @@ for _, item in ipairs(Config.Catalog) do
  seen[item.id] = true
 end
 check(#Config.Themes >= 2 and Config.MinPlayers >= 2 and Config.MaxPlayers >= Config.MinPlayers, "valid round settings")
+local Access = require("../src/shared/Access")
+check(Access.canBrowse("Lobby") and Access.canBrowse("Intermission"), "stores open before round starts")
+check(Access.canTry("Lobby", false) and Access.canTry("Intermission", false), "solo lobby preview")
+check(Access.canTry("Shopping", true), "participant shopping preview")
+check(not Access.canTry("Shopping", false), "late spectator cannot preview during round")
+check(not Access.canBrowse("Showcase") and not Access.canBrowse("Results"), "stores closed for shows")
+check(not Access.canTry("Showcase", true), "no preview while on runway")
 print("PASS: " .. count .. " gameplay rule assertions")

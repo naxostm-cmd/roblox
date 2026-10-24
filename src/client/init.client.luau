@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Access = require(ReplicatedStorage.Shared:WaitForChild("Access"))
 local remotes = ReplicatedStorage:WaitForChild("ShoppingQueen")
 local request, update = remotes:WaitForChild("Request"), remotes:WaitForChild("Update")
 local gui = Instance.new("ScreenGui"); gui.Name = "ShoppingQueenUI"; gui.ResetOnSpawn = false; gui.Parent = player:WaitForChild("PlayerGui")
@@ -23,7 +24,8 @@ local function button(parent, text, size, position, callback)
 	b.Parent = parent; b.Activated:Connect(callback); return b
 end
 
-local hud = Instance.new("Frame"); hud.Size = UDim2.new(1, -16, 0, 126); hud.Position = UDim2.fromOffset(8, 8); hud.BackgroundColor3 = bg; hud.Parent = gui
+local hud = Instance.new("Frame"); hud.Size = UDim2.new(1, -16, 0, 126); hud.Position = UDim2.new(0.5, 0, 0, 8); hud.AnchorPoint = Vector2.new(0.5, 0); hud.BackgroundColor3 = bg; hud.Parent = gui
+local hudLimit = Instance.new("UISizeConstraint"); hudLimit.MaxSize = Vector2.new(1050, 126); hudLimit.Parent = hud
 local title = label(hud, "KRÓLOWA STYLU", UDim2.new(0.72, 0, 0, 30))
 title.Font = Enum.Font.GothamBold
 local timer = label(hud, "", UDim2.new(0.28, 0, 0, 30), UDim2.fromScale(0.72, 0))
@@ -69,9 +71,26 @@ render = function()
 	clear(controls); clear(content)
 	local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Shopping = "Zakupy", Showcase = "Pokaz i oceny", Results = "Wyniki" }
 	title.Text = "KRÓLOWA STYLU • " .. (phases[state.phase] or state.phase)
-	themes.Text = if #state.themes == 2 then "1. " .. state.themes[1] .. "   |   2. " .. state.themes[2] else "Potrzeba co najmniej " .. Config.MinPlayers .. " osób."
-	wallet.Text = if state.participating then "Budżet: " .. state.budget .. " zł" else "Obserwujesz • czekaj na rundę"
-	if state.phase == "Shopping" and state.participating then
+	local waiting = state.phase == "Lobby" or state.phase == "Intermission"
+	themes.Text = if #state.themes == 2 then "1. " .. state.themes[1] .. "   |   2. " .. state.themes[2] else "Gracze: " .. (state.playerCount or 1) .. "/" .. Config.MinPlayers .. " • możesz już zwiedzać i przymierzać w butikach."
+	wallet.Text = if state.participating then "Budżet: " .. state.budget .. " zł" elseif waiting then "Zakupy za budżet ruszą od 2 osób" else "Obserwujesz • czekaj na rundę"
+	if waiting or (state.phase == "Shopping" and not state.participating) then
+		heading.Text = "Butiki • bezpłatne przymiarki w poczekalni"
+		for index, pair in ipairs(categories) do
+			if pair[1] == "owned" then continue end
+			local selectedCategory = pair[1]
+			button(controls, pair[2], UDim2.new(0.25, -4, 0, 38), UDim2.fromScale((index - 1) * 0.25, 0), function() category = selectedCategory; render() end)
+		end
+		row(if waiting then "Wejdź do butiku i podejdź do lady. Możesz przymierzać bez drugiego gracza. Kupowanie i zapisywanie zestawów ruszy po rozpoczęciu rundy." else "Ta runda już trwa. Możesz obejrzeć ofertę, a zakupy zrobisz w następnej rundzie.", 80)
+		for _, item in ipairs(Config.Catalog) do
+			if item.category ~= category then continue end
+			local card = row(item.name .. " • " .. item.price .. " zł w rundzie")
+			local id = item.id
+			if Access.canTry(state.phase, state.participating) then
+				button(card, "Przymierz bez kupowania", UDim2.new(1, -12, 0, 36), UDim2.fromOffset(6, 44), function() act("Try", id) end)
+			end
+		end
+	elseif state.phase == "Shopping" and state.participating then
 		heading.Text = "Wybierz zestaw • kupione produkty można użyć w obu stylizacjach"
 		for index = 1, 2 do
 			local selected = index
@@ -130,17 +149,18 @@ update.OnClientEvent:Connect(function(packet)
 	local previous = state
 	state = packet
 	if packet.message then message(packet.message) end
-	if packet.store then category = packet.store; opened = true end
 	if not previous or previous.phase ~= packet.phase then
 		opened = packet.phase == "Showcase" or packet.phase == "Results"
 		if packet.phase == "Shopping" then slot = 1; message("Podejdź do sklepu i naciśnij E. Zapisz oba zestawy przed końcem czasu!") end
 	end
+	if packet.store then category = packet.store; opened = true end
 	if packet.phase == "Showcase" and (not previous or previous.showId ~= packet.showId) then opened = true end
 	local camera = workspace.CurrentCamera
 	if camera then
 		if packet.phase == "Showcase" then
 			camera.CameraType = Enum.CameraType.Scriptable
-			camera.CFrame = CFrame.lookAt(Vector3.new(0, 8, -57), Vector3.new(0, 4, -40))
+			local stage = packet.stagePosition
+			camera.CFrame = CFrame.lookAt(stage + Vector3.new(0, 3, 17), stage + Vector3.new(0, -1, 0))
 		elseif previous and previous.phase == "Showcase" then
 			camera.CameraType = Enum.CameraType.Custom
 			local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")

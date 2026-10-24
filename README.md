@@ -7,12 +7,13 @@ Dwa różne tematy, wspólny budżet 1500 zł, 8 minut zakupów i dwa pokazy ka�
 1. W folderze repozytorium wykonaj `git pull origin main`.
 2. Użyj Rojo **7.7.1** (wersja w `aftman.toml`). Uruchom `rojo serve` w folderze z `default.project.json`.
 3. Otwórz kopię `Roblox Shopping queen.rbxl` w Studio, połącz wtyczkę Rojo i przejrzyj zmiany synchronizacji. Projekt synchronizuje skrypty, zachowując istniejącą mapę i pozostałe usługi.
-4. Uruchom test serwera z **dwoma klientami** w narzędziach testowych Studio. Test jednoosobowy zatrzyma się w lobby.
+4. Uruchom test serwera z **dwoma klientami** w narzędziach testowych Studio. Samemu możesz zwiedzać galerię, otwierać sklepy i przymierzać produkty. Rywalizacja i zakupy za budżet wymagają dwóch osób.
 
-Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **nie importuje mapy z oryginalnego pliku `.rbxl`**. Serwer tworzy prostą podłogę, cztery stoiska i wybieg do testowania. Zarządza wyłącznie swoim folderem `Workspace.ShoppingQueenPrototype`. Jeśli istniejąca mapa zajmuje ten sam obszar, dostosuj współrzędne w `src/server/World.luau`.
+Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **nie importuje mapy z oryginalnego pliku `.rbxl`**. Serwer tworzy zabudowaną galerię 126 × 160 studów: cztery butiki z witrynami, manekinami i wieszakami, pasaż pod szklanym dachem, ławki, rośliny i strefę pokazów. Budynki pojawiają się po Play, nie w trybie edycji. Podłoga znajduje się na wysokości 8 studów nad oryginalną płytą, a powierzchnie butików są oddzielone od posadzki, żeby uniknąć migotania. Zarządza wyłącznie swoim folderem `Workspace.ShoppingQueenPrototype`. Jeśli istniejąca mapa zajmuje ten sam obszar, dostosuj współrzędne w `src/server/World.luau`.
 
 ## Jak grać
 
+- W poczekalni wejdź do dowolnego butiku, podejdź do lady i naciśnij E (lub przycisk interakcji na telefonie). Oferta i bezpłatne przymiarki działają również przy jednym graczu. Podczas trwającej rundy obserwatorzy mogą oglądać ofertę, ale nie kupować ani przymierzać.
 - Po 15 sekundach lobby runda losuje dwa różne tematy. Budżet jest wspólny dla obu stylizacji i nie ma związku z Robuxami.
 - Podejdź do stoiska i użyj interakcji (E na klawiaturze). Zakupy i przymiarki wymagają bliskości odpowiedniego sklepu. Przymiarka nie zapisuje produktu ani nie pobiera pieniędzy.
 - Wybierz zestaw 1 lub 2. Kupiony produkt dodaj przyciskiem „Wybierz do zestawu”. W garderobie dostępne są wszystkie zakupione produkty; można wykorzystać je w obu zestawach.
@@ -24,7 +25,7 @@ Alternatywnie: `rojo build -o "Ola Roblox.rbxlx"`. Wynik zawiera skrypty, ale **
 
 ## Zakres prototypu
 
-Ubrania są wizualizowane jako kolory części awatara, proste buty i kapelusze. To nie docelowe modele sukienek ani zakupy katalogowe. Obsługiwane są nazwy części R6/R15; niestandardowe awatary, warstwowe ubrania i nietypowe skale wymagają sprawdzenia w Studio. Kolejny etap to własne zasoby ubrań i mapa sklepów.
+Ubrania są wizualizowane jako kolory części awatara, proste buty i kapelusze. To nie docelowe modele sukienek ani zakupy katalogowe. Obsługiwane są nazwy części R6/R15; niestandardowe awatary, warstwowe ubrania i nietypowe skale wymagają sprawdzenia w Studio. Galeria ma już budynki, lecz docelowe modele i tekstury ubrań pozostają kolejnym etapem.
 
 Ceny, tematy i czas zmienisz w `src/shared/Config.luau`. Reguły zakupów, zapisów i ocen są w `src/shared/Rules.luau`. Serwer sprawdza budżet, własność produktów, dystans do sklepu, etap rundy i uprawnienia do głosowania. Klient obsługuje UI oraz kamerę.
 
@@ -34,16 +35,17 @@ Z interpreterem Luau i Rojo w PATH:
 
 ```sh
 luau tests/rules.luau
+python tests/check_world.py
 rojo build -o "Ola Roblox.rbxlx"
 ```
 
-Testy reguł sprawdzają brak środków, ponowne zakupy, niezależność zestawów, zapis, nieprawidłowe i własne głosy, obserwatorów, wyjście gracza i remisy. Nie zastępują testu multiplayer w Studio.
+Testy reguł sprawdzają brak środków, ponowne zakupy, niezależność zestawów, zapis, nieprawidłowe i własne głosy, obserwatorów, wyjście gracza i remisy. Test `check_world.py` wymaga Pythona 3 oraz interpretera `luau` w PATH (lub zmiennej `LUAU_BIN`). Uruchamia generator mapy z uproszczonymi obiektami silnika i sprawdza cztery interakcje sklepów, przejście od pasażu do lad, rozdzielenie podłóg i zachowanie istniejącej mapy. Nie sprawdza renderowania ani fizyki Roblox i nie zastępuje testu multiplayer w Studio.
 
 ### Kontrola ręczna w Studio
 
 Do szybkiego testu tymczasowo zmniejsz `ShoppingSeconds` i `VotingSeconds`, a potem przywróć wartości:
 
-1. Uruchom dwa klienty. Sprawdź jednakowe tematy i budżety. Przy jednej osobie runda nie może ruszyć.
+1. Najpierw uruchom jeden klient: podejdź do każdej lady, otwórz ofertę, przymierz produkt; sprawdź brak migotania podłogi i wejścia do butików. Następnie uruchom dwa klienty. Sprawdź jednakowe tematy i budżety. Przy jednej osobie runda nie może ruszyć.
 2. Przymierz produkt: budżet i zestawy nie powinny się zmienić. Kup: budżet spada tylko raz. Zakup z daleka lub bez środków ma być odrzucony.
 3. Zapisz dwa różne zestawy. Sprawdź odrzucenie zapisu bez góry/dołu oraz konieczność ponownego zapisu po zmianie. Zresetuj postać i sprawdź zachowanie garderoby.
 4. Sprawdź oba pokazy każdej osoby, kamerę i oceny. Nie można oceniać siebie ani głosować ponownie. Porównaj ranking z oddanymi ocenami.
@@ -51,3 +53,5 @@ Do szybkiego testu tymczasowo zmniejsz `ShoppingSeconds` i `VotingSeconds`, a po
 6. Sprawdź kolejną rundę, reset stanu, UI w emulatorze telefonu i awatary R6/R15.
 
 `Roblox Shopping queen.rbxl` pozostaje oryginałem. Rojo zmienia otwarty projekt Studio; zapis i publikacja gry do Roblox należą do właściciela.
+
+Po pobraniu aktualizacji zatrzymaj Play przyciskiem Stop, poczekaj na synchronizację Rojo i dopiero uruchom Play ponownie. Moduły generujące mapę nie przebudują jej w już trwającym teście.
