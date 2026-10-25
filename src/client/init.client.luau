@@ -595,13 +595,27 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	elseif input.KeyCode == Enum.KeyCode.Escape and opened then opened = false; render() end
 end)
 -- Movement is locked during cutscenes; the server walks the runway for you.
-local controls
-pcall(function() controls = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls() end)
+-- Sinking the player actions never blocks this script (unlike waiting for the
+-- PlayerModule, which may not exist or load late).
+local ContextActionService = game:GetService("ContextActionService")
 local controlsLocked = false
+local controls -- Touch controls (thumbstick, jump button), found in the background.
+task.spawn(function()
+	local scripts = player:WaitForChild("PlayerScripts", 10)
+	local module = scripts and scripts:WaitForChild("PlayerModule", 10)
+	if module then pcall(function() controls = require(module):GetControls() end) end
+	if controls and controlsLocked then controls:Disable() end
+end)
 local function lockControls(locked)
-	if not controls or locked == controlsLocked then return end
+	if locked == controlsLocked then return end
 	controlsLocked = locked
-	if locked then controls:Disable() else controls:Enable() end
+	if controls then pcall(function() if locked then controls:Disable() else controls:Enable() end end) end
+	if locked then
+		ContextActionService:BindActionAtPriority("SQCutsceneFreeze", function() return Enum.ContextActionResult.Sink end,
+			false, Enum.ContextActionPriority.High.Value + 50, table.unpack(Enum.PlayerActions:GetEnumItems()))
+	else
+		ContextActionService:UnbindAction("SQCutsceneFreeze")
+	end
 end
 local phaseDuration = 1
 local function mood(packet)
@@ -610,7 +624,7 @@ local function mood(packet)
 	if packet.phase == "Results" then return "Results" end
 	return "Lobby"
 end
-update.OnClientEvent:Connect(function(packet)
+local function receive(packet)
 	local previous = state
 	view, opened = UiState.receive(previous, packet, view, opened)
 	state = packet
@@ -647,6 +661,11 @@ update.OnClientEvent:Connect(function(packet)
 		if humanoid then camera.CameraSubject = humanoid end
 	end
 	render()
+end
+-- One bad packet or UI bug must never stop later updates.
+update.OnClientEvent:Connect(function(packet)
+	local ok, err = xpcall(receive, debug.traceback, packet)
+	if not ok then warn("[Królowa Stylu] Błąd GUI: " .. tostring(err)) end
 end)
 RunService.RenderStepped:Connect(function()
 	if not state then return end

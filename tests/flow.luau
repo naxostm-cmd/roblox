@@ -71,10 +71,20 @@ return function(sources)
 		end,
 	}
 
+	-- Interned enum items, so equality and .Value behave like Roblox enums.
+	local enumItems = {}
+	local enum = setmetatable({}, { __index = function(_, key)
+		enumItems[key] = enumItems[key] or {}
+		return setmetatable({ GetEnumItems = function() return {} end }, { __index = function(_, value)
+			enumItems[key][value] = enumItems[key][value] or setmetatable({ Name = value, Value = 1000, EnumType = key }, { __tostring = function() return "Enum." .. key .. "." .. value end })
+			return enumItems[key][value]
+		end })
+	end })
 	-- Instances: any property, children by name, lazily created events.
 	local all = {}
 	local events = { Triggered = true, Running = true, Seated = true, Ended = true, OnServerEvent = true, PlayerAdded = true,
-		PlayerRemoving = true, CharacterAdded = true, CharacterAppearanceLoaded = true, MoveToFinished = true }
+		PlayerRemoving = true, CharacterAdded = true, CharacterAppearanceLoaded = true, MoveToFinished = true, OnClientEvent = true,
+		MouseEnter = true, MouseLeave = true, MouseButton1Down = true, MouseButton1Up = true, Activated = true, InputBegan = true, RenderStepped = true }
 	local function event()
 		local e = { handlers = {} }
 		function e:Connect(fn) table.insert(self.handlers, fn); return { Disconnect = function() end } end
@@ -124,20 +134,46 @@ return function(sources)
 	function methods:Clone() local c = Instance.new(self.ClassName); for k, v in pairs(self) do if type(k) == "string" and k ~= "Parent" then rawset(c, k, v) end end; return c end
 	function methods:GetAccessories() return {} end
 	function methods:SetAccessories(list) self.accessories = list end
-	function methods:FireClient(player, packet) player.lastPacket = packet; player.packets = (player.packets or 0) + 1 end
+	-- Roblox rejects tables that mix array and dictionary keys, or use non-string keys.
+	local function serializable(value, path)
+		if type(value) ~= "table" or getmetatable(value) ~= nil then return end
+		local n, count, strings, numbers = #value, 0, 0, 0
+		for k, v in pairs(value) do
+			count += 1
+			if type(k) == "string" then strings += 1 elseif type(k) == "number" then numbers += 1 else error("bad key type at " .. path) end
+			serializable(v, path .. "." .. tostring(k))
+		end
+		assert(strings == 0 or numbers == 0, "mixed table keys at " .. path)
+		assert(numbers == 0 or numbers == n, "sparse or non-sequential array at " .. path)
+	end
+	local function copy(value)
+		if type(value) ~= "table" or getmetatable(value) ~= nil then return value end
+		local out = {}; for k, v in pairs(value) do out[k] = copy(v) end; return out
+	end
+	function methods:FireClient(player, packet)
+		serializable(packet, "packet")
+		player.lastPacket = packet; player.packets = (player.packets or 0) + 1
+		if self.OnClientEvent and #self.OnClientEvent.handlers > 0 then
+			local delivered = copy(packet)
+			task.defer(function() for _, fn in ipairs(self.OnClientEvent.handlers) do fn(delivered) end end)
+		end
+	end
+	function methods:FireServer(action, payload)
+		for _, fn in ipairs(self.OnServerEvent.handlers) do task.defer(fn, rawget(self, "fromPlayer"), action, payload) end
+	end
+	function methods:GetPropertyChangedSignal() return event() end
+	function methods:Play() end
+	function methods:Stop() end
 	function methods:HasAppearanceLoaded() return true end
 	function methods:GetServerTimeNow() return clock end
 	Instance = { new = function(class, parent)
 		local obj = setmetatable({ ClassName = class, Name = class, CanCollide = true, Size = vec(2, 2, 1), CFrame = cframe(vec()) }, meta)
-		if class == "Humanoid" then obj.HipHeight = 2; obj.RigType = "HumanoidRigType.R15"; obj.WalkSpeed = 16 end
+		if class == "Humanoid" then obj.HipHeight = 2; obj.RigType = enum.HumanoidRigType.R15; obj.WalkSpeed = 16 end
 		table.insert(all, obj)
 		if parent then obj.Parent = parent end
 		return obj
 	end }
 
-	local enum = setmetatable({}, { __index = function(_, key)
-		return setmetatable({}, { __index = function(_, value) return key .. "." .. value end })
-	end })
 	local workspace = Instance.new("Workspace")
 	local function rig(name)
 		local model = Instance.new("Model"); model.Name = name
@@ -157,6 +193,7 @@ return function(sources)
 	function Players:GetPlayerByUserId(id) for _, p in ipairs(playerList) do if p.UserId == id then return p end end end
 	function Players:GetNameFromUserIdAsync(id) return "user" .. id end
 	local memory, ordered = {}, {}
+	local frozen, warnings, frozeDuringShow = nil, {}, false
 	local DataStoreService = { GetDataStore = function() return {
 		GetAsync = function(_, k) return memory[k] end, SetAsync = function(_, k, v) memory[k] = v end } end,
 		GetOrderedDataStore = function() return {
@@ -169,10 +206,12 @@ return function(sources)
 		ReplicatedStorage = Instance.new("ReplicatedStorage"),
 		MarketplaceService = { GetProductInfo = function(_, id) return { AssetId = id, Name = "Item" } end },
 		PathfindingService = { CreatePath = function() local target; return {
-			ComputeAsync = function(_, _, t) target = t end, Status = "PathStatus.Success",
-			GetWaypoints = function() return { { Position = target, Action = "PathWaypointAction.Walk" } } end } end },
+			ComputeAsync = function(_, _, t) target = t end, Status = enum.PathStatus.Success,
+			GetWaypoints = function() return { { Position = target, Action = enum.PathWaypointAction.Walk } } end } end },
 		Lighting = { Ambient = vec(0, 0, 0) },
 		TweenService = { Create = function() return { Play = function() end } end },
+		ContextActionService = { BindActionAtPriority = function(_, name) frozen = name end, UnbindAction = function() frozen = nil end },
+		RunService = Instance.new("RunService"), UserInputService = Instance.new("UserInputService"), SoundService = Instance.new("SoundService"),
 	}
 	local game = { GetService = function(_, name) return services[name] end, BindToClose = function() end }
 	local shared = Instance.new("Folder"); shared.Name = "Shared"; shared.Parent = services.ReplicatedStorage
@@ -198,14 +237,49 @@ return function(sources)
 		return loaded[key]
 	end
 	local packed = function(...) return { ... } end
+	local function ud(xs, xo, ys, yo) return { X = { Scale = xs or 0, Offset = xo or 0 }, Y = { Scale = ys or 0, Offset = yo or 0 } } end
+	local udim2 = { new = ud, fromScale = function(x, y) return ud(x, 0, y, 0) end, fromOffset = function(x, y) return ud(0, x, 0, y) end }
 	env = setmetatable({
 		game = game, workspace = workspace, task = task, Instance = Instance, Enum = enum, require = require, Random = random,
 		Vector3 = { new = vec, zero = vec() }, Color3 = { fromRGB = vec, new = vec }, CFrame = CFrameLib,
 		UDim2 = { fromScale = packed, fromOffset = packed, new = packed }, UDim = { new = packed }, Vector2 = { new = packed },
 		NumberRange = { new = packed }, NumberSequence = { new = packed }, NumberSequenceKeypoint = { new = packed },
-		ColorSequence = { new = packed }, ColorSequenceKeypoint = { new = packed }, warn = function() end,
+		ColorSequence = { new = packed }, ColorSequenceKeypoint = { new = packed }, warn = function(message) table.insert(warnings, tostring(message)) end,
 		os = setmetatable({ clock = function() return clock end }, { __index = os }),
 	}, { __index = getfenv() })
+
+	-- Client: the real GUI script, fed with the packets the server sends.
+	local function startClient(localPlayer, remotes)
+		local clientScript = Instance.new("LocalScript"); clientScript.Name = "Client"
+		for name in pairs(sources.client) do local m = Instance.new("ModuleScript"); m.Name = name; m.Parent = clientScript; m.module = { "client", name } end
+		local playerGui = Instance.new("PlayerGui"); playerGui.Name = "PlayerGui"; playerGui.Parent = localPlayer
+		local scripts = Instance.new("PlayerScripts"); scripts.Name = "PlayerScripts"; scripts.Parent = localPlayer
+		workspace.CurrentCamera = Instance.new("Camera")
+		local clientPlayers = setmetatable({ LocalPlayer = localPlayer }, { __index = Players })
+		local clientServices = setmetatable({ Players = clientPlayers }, { __index = services })
+		local clientGame = { GetService = function(_, name) return clientServices[name] end }
+		local clientEnv = setmetatable({ game = clientGame, Font = { new = function() return {} end, fromEnum = function() return {} end },
+			TweenInfo = { new = packed }, UDim2 = udim2, Vector2 = { new = packed, zero = {} }, math = setmetatable({ random = function(a, b) return a or 0 end }, { __index = math }) }, { __index = env })
+		-- Every GUI object reports a laptop-sized area.
+		local oldNew = Instance.new
+		Instance.new = function(class, parent)
+			local obj = oldNew(class, parent)
+			obj.AbsoluteSize = vec(1280, 720); obj.CanvasPosition = vec()
+			return obj
+		end
+		local fn = assert(loadstring(sources.client.init))
+		setfenv(fn, setmetatable({ script = clientScript }, { __index = clientEnv }))
+		local oldLoad = load
+		load = function(source, scriptObject)
+			local f = assert(loadstring(source)); setfenv(f, setmetatable({ script = scriptObject }, { __index = clientEnv })); return f
+		end
+		task.spawn(fn)
+		load = oldLoad
+		task.spawn(function()
+			while true do services.RunService.RenderStepped:Fire(1 / 30); task.wait(0.5) end
+		end)
+		return clientScript
+	end
 
 	-- One real player who joins from the lounge.
 	local player = Instance.new("Player"); player.UserId = 101; player.DisplayName = "Mati"; player.Name = "Mati"; player.Parent = Players
@@ -214,10 +288,13 @@ return function(sources)
 	local main = coroutine.create(load(sources.main, serverScript))
 	resume(main)
 	Players.PlayerAdded:Fire(player)
+	local remoteFolder = services.ReplicatedStorage:FindFirstChild("ShoppingQueen")
+	remoteFolder.Request.fromPlayer = player
+	startClient(player, remoteFolder)
 	local remote = services.ReplicatedStorage:FindFirstChild("ShoppingQueen"):FindFirstChild("Request")
 	local function act(action, payload) for _, fn in ipairs(remote.OnServerEvent.handlers) do fn(player, action, payload) end end
 	local seen, votedShows, bought = {}, {}, false
-	local lastShow, resultsPacket = 0, nil
+	local lastShow, resultsPacket, lobbyAt = 0, nil, nil
 	while #queue > 0 and clock < 1500 do
 		table.sort(queue, function(a, b) return a.at < b.at end)
 		local job = table.remove(queue, 1)
@@ -247,12 +324,24 @@ return function(sources)
 			if packet.phase == "Showcase" and packet.step == "vote" and packet.presenter ~= player.UserId and not votedShows[packet.showId] then
 				votedShows[packet.showId] = true; clock += 0.2; act("Vote", { score = 4, showId = packet.showId })
 			end
-			if packet.phase == "Showcase" then lastShow = math.max(lastShow, packet.showId) end
+			if packet.phase == "Showcase" then lastShow = math.max(lastShow, packet.showId); if frozen then frozeDuringShow = true end end
 			if packet.phase == "Results" and #packet.results > 0 then resultsPacket = packet end
-			if seen.Results and packet.phase == "Lobby" then break end
+			if seen.Results and packet.phase == "Lobby" then
+				lobbyAt = lobbyAt or clock
+				if clock > lobbyAt + 2 then break end
+			end
 		end
 	end
 	local packet = player.lastPacket
+	-- The GUI must have processed packets: the HUD shows the current phase.
+	local hudTexts = {}
+	for _, obj in ipairs(all) do if obj.ClassName == "TextLabel" and not obj.destroyed and type(rawget(obj, "Text")) == "string" then hudTexts[obj.Text] = true end end
+	for _, message in ipairs(warnings) do assert(not string.find(message, "Królowa Stylu", 1, true), message) end
+	assert(frozeDuringShow, "movement is locked during the runway show")
+	assert(frozen == nil, "movement unlocked after the episode")
+	assert(not hudTexts["Łączymy z galerią…"], "client never rendered a server packet")
+	assert(hudTexts["Poczekalnia"] or hudTexts["Podliczenie gwiazdek"] or hudTexts["Za chwilę start"], "HUD shows the phase")
+	assert(remoteFolder.Update.OnClientEvent and #remoteFolder.Update.OnClientEvent.handlers == 1, "client listens for updates")
 	assert(seen.Intermission and seen.Intro and seen.Shopping and seen.Showcase and seen.Results, "episode must pass every phase")
 	assert(lastShow >= 8, "4 contestants x 2 looks presented, got " .. lastShow)
 	local profile = packet.profile

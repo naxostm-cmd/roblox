@@ -231,7 +231,14 @@ task.spawn(function()
 			if root then
 				local participating = data[player.UserId] ~= nil
 				if inStudio(state.phase) then
-					if not World.isInsideStudio(root.Position) then placePlayer(player) end
+					local entrant = entrantOf(player)
+					local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+					local seatedPhase = state.phase == "Intro" or (state.phase == "Showcase" and state.presenter ~= player.UserId)
+					if not World.isInsideStudio(root.Position) then placePlayer(player)
+					elseif entrant and seatedPhase and humanoid and humanoid.SeatPart == nil and not root.Anchored then
+						-- Got up from the sofa (e.g. the jump button on a phone): sit back down.
+						seatEntrant(entrant)
+					end
 				elseif not Access.canBrowse(state.phase, participating) and not World.isInsideLobby(root.Position) then
 					move(player, World.Lobby, false)
 				end
@@ -592,13 +599,13 @@ local function results()
 	end
 end
 
-while true do
+local function episode()
 	reset()
 	state.phase = "Lobby"; state.themes = {}; state.results = {}; state.endsAt = 0
 	broadcast()
 	repeat task.wait(0.25); pruneQueue() until #queue >= Config.MinPlayers
 	state.phase = "Intermission"
-	if not countdown(Config.IntermissionSeconds, function() pruneQueue(); return #queue >= Config.MinPlayers end) then continue end
+	if not countdown(Config.IntermissionSeconds, function() pruneQueue(); return #queue >= Config.MinPlayers end) then return end
 	pruneQueue()
 	for i = 1, math.min(#queue, Config.MaxPlayers) do
 		local player = queue[i]
@@ -623,7 +630,7 @@ while true do
 	state.themes = { Config.Themes[first], Config.Themes[second] }; state.round += 1
 	activeCatalog = Mall.generate(rng, activeCatalog, Config.Palette)
 	World.refreshStock(activeCatalog, Garments, openStore)
-	if not intro() then continue end
+	if not intro() then return end
 	-- Shopping: players appear in front of the mall, bots inside the hall.
 	state.phase = "Shopping"; state.step = nil; state.cam = nil; state.follow = nil; state.line = nil
 	local index = 0
@@ -643,7 +650,16 @@ while true do
 	for _, entrant in ipairs(entrants) do
 		if entrant.bot and entrant.model then task.defer(runBot, entrant, round) end
 	end
-	if not countdown(Config.ShoppingSeconds, humansPresent) then continue end
-	if not showcase() then continue end
+	if not countdown(Config.ShoppingSeconds, humansPresent) then return end
+	if not showcase() then return end
 	results()
+end
+
+-- A bug in one episode returns everyone to the lounge instead of freezing the game.
+while true do
+	local ok, err = xpcall(episode, debug.traceback)
+	if not ok then
+		warn("[Królowa Stylu] Błąd rundy: " .. tostring(err))
+		task.wait(1)
+	end
 end
