@@ -710,6 +710,123 @@ local function buildNorthWing(mall, onFood)
 	sign(north, "FoodCourtSign", "FOOD COURT", Vector3.new(24, 3, 0.4), CFrame.new(0, L2 + 15, -42.6) * CFrame.Angles(0, math.pi, 0), plum, gold, nil, Enum.Font.Bodoni)
 end
 
+-- TV studio for the intro and the runway show: a separate, closed room.
+local SZ = 270
+World.StudioCenter = Vector3.new(0, FLOOR, SZ)
+World.RunwayStart = CFrame.lookAt(Vector3.new(0, FLOOR + 5, SZ + 28), Vector3.new(0, FLOOR + 5, SZ))
+World.RunwayEnd = Vector3.new(0, FLOOR + 5, SZ + 3)
+World.StudioAudience = CFrame.lookAt(Vector3.new(27, FLOOR + 3, SZ + 10), Vector3.new(0, FLOOR + 3, SZ + 10))
+World.HostSpot = CFrame.lookAt(Vector3.new(-13, FLOOR + 0.6, SZ - 2), Vector3.new(-6, FLOOR + 0.6, SZ - 14))
+World.PodiumSpots = {
+	CFrame.new(0, FLOOR + 3 + 3, SZ - 4),
+	CFrame.new(-5, FLOOR + 2 + 3, SZ - 4),
+	CFrame.new(5, FLOOR + 1 + 3, SZ - 4),
+}
+World.StudioCams = {
+	wide = { pos = Vector3.new(0, FLOOR + 15, SZ - 31), look = Vector3.new(0, FLOOR + 4, SZ + 12) },
+	host = { pos = Vector3.new(-8.5, FLOOR + 6.5, SZ - 11), look = Vector3.new(-13, FLOOR + 5, SZ - 2) },
+	jury = { pos = Vector3.new(0, FLOOR + 7, SZ - 9), look = Vector3.new(0, FLOOR + 4, SZ - 19) },
+	podium = { pos = Vector3.new(0, FLOOR + 9, SZ - 25), look = Vector3.new(0, FLOOR + 5, SZ - 4) },
+	runway = { pos = Vector3.new(0, FLOOR + 7, SZ - 9) },
+}
+World.ContestantSeats, World.JurySeats = {}, {}
+
+function World.isInsideStudio(position)
+	return math.abs(position.X) <= 35.5 and position.Z >= SZ - 33.5 and position.Z <= SZ + 33.5
+		and position.Y >= FLOOR + 0.5 and position.Y <= FLOOR + 25
+end
+
+local confetti = {}
+function World.setConfetti(on)
+	for _, emitter in ipairs(confetti) do emitter.Enabled = on end
+end
+
+local function buildStudio(mall)
+	local studio = Instance.new("Model"); studio.Name = "ShowStudio"; studio.Parent = mall
+	World.ContestantSeats, World.JurySeats, confetti = {}, {}, {}
+	part(studio, "StudioFoundation", Vector3.new(76, 2, 72), Vector3.new(0, FLOOR - 1, SZ), dark, Enum.Material.Concrete)
+	local floor = part(studio, "StudioFloor", Vector3.new(72, 0.2, 68), Vector3.new(0, FLOOR + 0.1, SZ), Color3.fromRGB(34, 22, 40))
+	floor.Reflectance = 0.15
+	for _, side in ipairs({ -1, 1 }) do
+		wall(studio, "StudioWall", side * 36, SZ - 34, side * 37, SZ + 34, FLOOR, FLOOR + 26, plum)
+		deco(part(studio, "StudioNeon", Vector3.new(0.3, 0.3, 66), Vector3.new(side * 35.6, FLOOR + 18, SZ), pink, Enum.Material.Neon))
+	end
+	wall(studio, "StudioWall", -37, SZ - 34, 37, SZ - 35, FLOOR, FLOOR + 26, plum)
+	wall(studio, "StudioWall", -37, SZ + 34, 37, SZ + 35, FLOOR, FLOOR + 26, plum)
+	part(studio, "StudioRoof", Vector3.new(74, 1, 70), Vector3.new(0, FLOOR + 26.5, SZ), dark)
+	-- LED wall and curtains behind the runway.
+	sign(studio, "LedWall", "KRÓLOWA STYLU\n★ POKAZ MODY ★", Vector3.new(30, 14, 0.6), CFrame.new(0, FLOOR + 10, SZ + 33.2) * CFrame.Angles(0, math.pi, 0), plum, gold, nil, Enum.Font.Bodoni)
+	for _, side in ipairs({ -1, 1 }) do
+		box(studio, "Curtain", Vector3.new(16, 24, 0.5), CFrame.new(side * 25, FLOOR + 12, SZ + 33), Color3.fromRGB(150, 30, 70), Enum.Material.Fabric)
+	end
+	-- Runway with neon edges, ending at the podium.
+	part(studio, "ShowRunway", Vector3.new(8, 2, 30), Vector3.new(0, FLOOR + 1, SZ + 16), dark, Enum.Material.Marble)
+	part(studio, "ShowCarpet", Vector3.new(6, 0.12, 30), Vector3.new(0, FLOOR + 2.06, SZ + 16), Color3.fromRGB(196, 30, 60), Enum.Material.Fabric)
+	for _, side in ipairs({ -1, 1 }) do
+		deco(part(studio, "RunwayNeon", Vector3.new(0.25, 0.2, 30), Vector3.new(side * 3.9, FLOOR + 2.1, SZ + 16), pink, Enum.Material.Neon))
+		local spotAt = Vector3.new(side * 10, FLOOR + 22, SZ + 8)
+		local spot = deco(part(studio, "RunwaySpot", Vector3.new(1.5, 1.5, 1.5), spotAt, steel, Enum.Material.Metal))
+		spot.CFrame = CFrame.lookAt(spotAt, Vector3.new(0, FLOOR + 3, SZ + 10))
+		local light = Instance.new("SpotLight"); light.Face = Enum.NormalId.Front; light.Angle = 45; light.Range = 40; light.Brightness = 4
+		light.Color = Color3.fromRGB(255, 225, 240); light.Parent = spot
+	end
+	for i = 0, 3 do
+		lamp(deco(part(studio, "StudioLight", Vector3.new(6, 0.3, 6), Vector3.new(if i % 2 == 0 then -14 else 14, FLOOR + 25, SZ - 20 + math.floor(i / 2) * 30), cream, Enum.Material.Neon)), 45, 1)
+	end
+	-- Podium for the final ceremony (1st centre, 2nd left, 3rd right).
+	for index, entry in ipairs({ { 0, 3 }, { -5, 2 }, { 5, 1 } }) do
+		local block = part(studio, "Podium", Vector3.new(4, entry[2], 4), Vector3.new(entry[1], FLOOR + entry[2] / 2, SZ - 4), if index == 1 then gold else cream, Enum.Material.Marble)
+		block.Name = "Podium" .. index
+		sign(studio, "PodiumNumber", tostring(index), Vector3.new(2, 1, 0.2), CFrame.new(entry[1], FLOOR + entry[2] / 2, SZ - 6.05), dark, gold)
+		local emitterPart = deco(part(studio, "ConfettiCannon", Vector3.new(1, 1, 1), Vector3.new(entry[1], FLOOR + 22, SZ - 4), dark))
+		emitterPart.Transparency = 1
+		local emitter = Instance.new("ParticleEmitter"); emitter.Name = "Confetti"; emitter.Enabled = false
+		emitter.Rate = 60; emitter.Lifetime = NumberRange.new(3, 5); emitter.Speed = NumberRange.new(4, 8)
+		emitter.SpreadAngle = Vector2.new(60, 60); emitter.Acceleration = Vector3.new(0, -8, 0)
+		emitter.Rotation = NumberRange.new(0, 360); emitter.RotSpeed = NumberRange.new(-180, 180)
+		emitter.Size = NumberSequence.new(0.4); emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+		emitter.Color = ColorSequence.new(Color3.fromRGB(255, 120, 180), Color3.fromRGB(255, 220, 120))
+		emitter.Parent = emitterPart
+		table.insert(confetti, emitter)
+	end
+	-- Jury table facing the runway.
+	part(studio, "JuryTable", Vector3.new(20, 3, 3), Vector3.new(0, FLOOR + 1.5, SZ - 16), plum)
+	part(studio, "JuryTableTop", Vector3.new(20.4, 0.3, 3.4), Vector3.new(0, FLOOR + 3.15, SZ - 16), marble, Enum.Material.Marble)
+	sign(studio, "JurySign", "JURY", Vector3.new(8, 1.6, 0.2), CFrame.new(0, FLOOR + 1.6, SZ - 14.4) * CFrame.Angles(0, math.pi, 0), dark, gold, nil, Enum.Font.Bodoni)
+	for index, x in ipairs({ -6, 0, 6 }) do
+		part(studio, "JuryChairBack", Vector3.new(3, 4, 0.5), Vector3.new(x, FLOOR + 3, SZ - 20.6), dark)
+		local seat = part(studio, "JurySeat", Vector3.new(3, 0.5, 3), Vector3.new(x, FLOOR + 1.6, SZ - 19), Color3.fromRGB(150, 30, 70), Enum.Material.Fabric, "Seat")
+		seat.CFrame *= CFrame.Angles(0, math.pi, 0)
+		part(studio, "JuryChairLeg", Vector3.new(0.5, 1.4, 0.5), Vector3.new(x, FLOOR + 0.7, SZ - 19), gold, Enum.Material.Metal)
+		World.JurySeats[index] = seat
+	end
+	-- Host stand with a microphone.
+	part(studio, "HostStand", Vector3.new(4, 0.6, 4), Vector3.new(-13, FLOOR + 0.3, SZ - 2), gold, Enum.Material.Metal)
+	part(studio, "MicStand", Vector3.new(0.2, 4.5, 0.2), Vector3.new(-12, FLOOR + 2.85, SZ - 3.5), steel, Enum.Material.Metal)
+	-- Contestant sofas on both sides of the runway.
+	for _, side in ipairs({ -1, 1 }) do
+		part(studio, "StudioSofa", Vector3.new(4, 1, 26), Vector3.new(side * 12.5, FLOOR + 0.9, SZ + 15), Color3.fromRGB(226, 120, 160), Enum.Material.Fabric)
+		part(studio, "StudioSofaBack", Vector3.new(0.8, 3.5, 26), Vector3.new(side * 14.5, FLOOR + 2.4, SZ + 15), Color3.fromRGB(196, 90, 130), Enum.Material.Fabric)
+		for _, z in ipairs({ 24, 18, 12, 6 }) do
+			local seat = part(studio, "ContestantSeat", Vector3.new(3, 0.5, 3), Vector3.new(side * 12, FLOOR + 1.6, SZ + z), Color3.fromRGB(240, 160, 190), Enum.Material.Fabric, "Seat")
+			seat.CFrame *= CFrame.Angles(0, if side == -1 then -math.pi / 2 else math.pi / 2, 0)
+			table.insert(World.ContestantSeats, seat)
+		end
+	end
+	sign(studio, "AudienceSign", "WIDOWNIA", Vector3.new(10, 1.6, 0.2), CFrame.new(35.4, FLOOR + 12, SZ + 10) * CFrame.Angles(0, math.pi / 2, 0), dark, gold)
+end
+
+local function buildLeaderboard(mall)
+	local board = box(mall, "LeaderboardBoard", Vector3.new(16, 14, 0.6), CFrame.new(-28, FLOOR + 8, LZ) * CFrame.Angles(0, -math.pi / 2, 0), plum)
+	part(mall, "LeaderboardPost", Vector3.new(1, 8, 1), Vector3.new(-28, FLOOR + 1, LZ), gold, Enum.Material.Metal)
+	local gui = Instance.new("SurfaceGui"); gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud; gui.PixelsPerStud = 30; gui.Parent = board
+	local label = Instance.new("TextLabel"); label.Size = UDim2.fromScale(0.92, 0.9); label.Position = UDim2.fromScale(0.04, 0.05)
+	label.BackgroundTransparency = 1; label.Font = Enum.Font.GothamBold; label.TextColor3 = cream; label.TextScaled = true
+	label.TextWrapped = true; label.Text = "🏆 RANKING\nŁadowanie…"; label.Parent = gui
+	World.LeaderboardLabel = label
+end
+
 function World.create(onStore, catalog, garments, onJoin, onFood)
 	local old = workspace:FindFirstChild("ShoppingQueenPrototype")
 	if old then old:Destroy() end
@@ -737,6 +854,8 @@ function World.create(onStore, catalog, garments, onJoin, onFood)
 	spawn.Material = Enum.Material.Marble; spawn.Color = pink; spawn.Parent = mall
 	local decal = spawn:FindFirstChildOfClass("Decal"); if decal then decal:Destroy() end
 	buildLounge(mall, onJoin or function() end)
+	buildStudio(mall)
+	buildLeaderboard(mall)
 	local bots = Instance.new("Folder"); bots.Name = "Bots"; bots.Parent = mall
 	World.BotFolder = bots
 	return mall

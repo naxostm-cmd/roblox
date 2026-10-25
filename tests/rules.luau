@@ -32,20 +32,20 @@ check(Rules.equip(data, Catalog, 2, "blue_bottom") == true, "owned bottom reusab
 check(Rules.save(data, 2) == true, "second look saved")
 check(Rules.equip(data, Catalog, 1, "rose_top") == true and not data.saved[1] and data.saved[2], "edit invalidates only affected save")
 local ids, votes = { [11] = true, [22] = true, [33] = true }, {}
-check(Rules.vote(votes, 11, 11, 10, ids) == false, "self voting blocked")
-check(Rules.vote(votes, 99, 11, 10, ids) == false, "spectator voting blocked")
-check(Rules.vote(votes, 22, 99, 10, ids) == false, "departed presenter blocked")
-for _, invalid in ipairs({ 0, 11, 4.5, "10", math.huge, 0 / 0 }) do
+check(Rules.vote(votes, 11, 11, 5, ids) == false, "self voting blocked")
+check(Rules.vote(votes, 99, 11, 5, ids) == false, "spectator voting blocked")
+check(Rules.vote(votes, 22, 99, 5, ids) == false, "departed presenter blocked")
+for _, invalid in ipairs({ 0, 6, 10, 4.5, "5", math.huge, 0 / 0 }) do
  check(Rules.vote(votes, 22, 11, invalid, ids) == false, "invalid score blocked")
 end
-check(Rules.vote(votes, 22, 11, 8, ids) == true, "valid vote")
-check(Rules.vote(votes, 22, 11, 1, ids) == false and votes[22] == 8, "one immutable vote per show")
-check(Rules.vote(votes, 33, 11, 10, ids) == true, "second voter")
+check(Rules.vote(votes, 22, 11, 4, ids) == true, "valid vote")
+check(Rules.vote(votes, 22, 11, 1, ids) == false and votes[22] == 4, "one immutable vote per show")
+check(Rules.vote(votes, 33, 11, 5, ids) == true, "second voter")
 local mean, total = Rules.average(votes, ids)
-check(mean == 9 and total == 2, "mean of valid votes")
+check(mean == 4.5 and total == 2, "mean of valid votes")
 ids[33] = nil
 mean, total = Rules.average(votes, ids)
-check(mean == 8 and total == 1, "departed voter excluded")
+check(mean == 4 and total == 1, "departed voter excluded")
 mean, total = Rules.average({}, ids)
 check(mean == 0 and total == 0, "no votes yields zero")
 local ranked = Rules.rank({ { userId = 33, score = 7 }, { userId = 22, score = 9 }, { userId = 11, score = 9 }, { userId = 44, score = 0 } })

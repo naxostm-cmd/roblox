@@ -94,14 +94,43 @@ function BotLogic.plan(catalog, budget, palette, rng)
 	return { route = ordered, looks = looks, spent = budget - left }
 end
 
--- Simulated, clearly labelled jury scores; complete saved looks score higher.
-function BotLogic.score(saved, look, rng)
-	if not saved then return rng:NextInteger(1, 4) end
-	local pieces = 0
+local function pieces(look)
+	local count = 0
 	for category in pairs(look or {}) do
-		if category ~= "colors" then pieces += 1 end
+		if category ~= "colors" then count += 1 end
 	end
-	return math.min(10, rng:NextInteger(6, 9) + (if pieces >= 5 then 1 else 0))
+	return count
+end
+
+-- Simulated, clearly labelled contestant votes (1–5 stars).
+function BotLogic.score(saved, look, rng)
+	if not saved then return rng:NextInteger(1, 2) end
+	return math.min(5, rng:NextInteger(3, 4) + (if pieces(look) >= 5 then 1 else 0))
+end
+
+-- Jury NPCs: complete looks with more accessories score higher, plus taste.
+function BotLogic.juryScore(saved, look, rng)
+	if not saved then return 1 end
+	local score = 3 + (if pieces(look) >= 4 then 1 else 0) + (if pieces(look) >= 6 then 1 else 0) + rng:NextInteger(-1, 1)
+	return math.clamp(score, 2, 5)
+end
+
+local phrases = {
+	[5] = { "Absolutnie zachwycające! %s to strzał w dziesiątkę przy temacie „%s”.", "Brak mi słów — %s i cała stylizacja to czysta klasa!", "Tak wygląda królowa stylu. %s skradł(a) mi serce!" },
+	[4] = { "Bardzo dobrze! %s wygląda świetnie, brakuje mi tylko jednego dodatku.", "Mocna stylizacja. %s pasuje do tematu „%s”.", "Podoba mi się! %s robi robotę." },
+	[3] = { "Poprawnie, ale %s nie do końca pasuje do „%s”.", "Jest nieźle, choć %s mnie nie przekonuje.", "Bezpiecznie. Przy %s można było zaryzykować więcej." },
+	[2] = { "Hmm… liczyłam/em na więcej. %s gryzie się z resztą.", "Temat „%s” to chyba coś innego niż %s.", "Za mało odwagi, a %s nie ratuje sytuacji." },
+	[1] = { "Niestety, ta stylizacja nie została dokończona.", "Bez zapisanego zestawu trudno cokolwiek ocenić.", "Tym razem nie wyszło — następnym razem będzie lepiej!" },
+}
+
+-- A short spoken comment mentioning a real item from the look.
+function BotLogic.comment(score, itemName, theme, rng)
+	local bank = phrases[math.clamp(score, 1, 5)]
+	local line = bank[rng:NextInteger(1, #bank)]
+	local first, second = itemName or "ta stylizacja", theme or "dnia"
+	if string.find(line, "Temat „%%s”") then first, second = second, first end
+	local ok, text = pcall(string.format, line, first, second)
+	return if ok then text else line
 end
 
 return BotLogic

@@ -1,5 +1,6 @@
 -- Pure rules shared with the CLI tests; never trust client prices or inventories.
 local Rules = {}
+Rules.MaxScore = 5 -- stars
 local categories = { top = true, bottom = true, shoes = true, accessory = true, bag = true, jewelry = true, glasses = true }
 
 function Rules.item(catalog, id)
@@ -60,8 +61,8 @@ function Rules.vote(votes, voterId, targetId, score, eligible)
 	if not eligible[voterId] or not eligible[targetId] or voterId == targetId then
 		return false, "Nie możesz oceniać tej osoby."
 	end
-	if type(score) ~= "number" or score ~= score or score % 1 ~= 0 or score < 1 or score > 10 then
-		return false, "Ocena musi być liczbą całkowitą 1–10."
+	if type(score) ~= "number" or score ~= score or score % 1 ~= 0 or score < 1 or score > Rules.MaxScore then
+		return false, "Ocena to od 1 do " .. Rules.MaxScore .. " gwiazdek."
 	end
 	if votes[voterId] then return false, "Głos został już oddany." end
 	votes[voterId] = score

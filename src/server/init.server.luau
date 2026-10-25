@@ -4,12 +4,15 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Rules = require(ReplicatedStorage.Shared.Rules)
 local Access = require(ReplicatedStorage.Shared.Access)
 local BotLogic = require(ReplicatedStorage.Shared.BotLogic)
+local Scoring = require(ReplicatedStorage.Shared.Scoring)
 local World = require(script.World)
 local Mall = require(ReplicatedStorage.Shared.Mall)
 local Garments = require(ReplicatedStorage.Shared.Garments)
 World.configure(Mall.Stores, Mall.Decor)
 local Appearance = require(script.Appearance)
 local BotActors = require(script.BotActors)
+local Progress = require(script.Progress)
+local Cosmetics = require(script.Cosmetics)
 -- Store mannequins and avatars wear real catalog items (see Mall pools).
 World.CatalogMannequin = Appearance.mannequin
 task.spawn(Appearance.validate, Mall.Pools)
@@ -17,12 +20,16 @@ task.spawn(Appearance.validate, Mall.Pools)
 local remotes = Instance.new("Folder"); remotes.Name = "ShoppingQueen"; remotes.Parent = ReplicatedStorage
 local request = Instance.new("RemoteEvent"); request.Name = "Request"; request.Parent = remotes
 local update = Instance.new("RemoteEvent"); update.Name = "Update"; update.Parent = remotes
-local state = { phase = "Lobby", endsAt = 0, themes = {}, round = 0, presenter = 0, slot = 0, showId = 0, results = {} }
+-- Phases: Lobby -> Intermission -> Intro (host cutscene) -> Shopping -> Showcase
+-- (walk / vote / reveal per look) -> Results (podium) -> Lobby.
+local state = { phase = "Lobby", step = nil, endsAt = 0, themes = {}, round = 0, presenter = 0, slot = 0, showId = 0, results = {},
+	cam = nil, follow = nil, line = nil, reveal = nil }
 -- Entrants are real players or bots; bots use negative ids in data/votes.
-local entrants, data, votes, lastRequest = {}, {}, {}, {}
-local queue = {}
+local entrants, data, votes, juryVotes, lastRequest = {}, {}, {}, {}, {}
+local queue, skips = {}, {}
 local rng = Random.new()
 local activeCatalog = Mall.generate(rng, nil, Config.Palette)
+local cast = { host = nil, jury = {} }
 
 local function present(entrant)
 	return entrant.bot or (entrant.player and entrant.player.Parent == Players)
@@ -71,14 +78,16 @@ local function send(player, message, store, fittingItem)
 	local waiting = {}
 	for _, waitingPlayer in ipairs(queue) do table.insert(waiting, waitingPlayer.DisplayName) end
 	update:FireClient(player, {
-		catalog = activeCatalog, fittingItem = fittingItem, playerCount = #Players:GetPlayers(), stagePosition = World.Stage.Position,
-		phase = state.phase, endsAt = state.endsAt, round = state.round, themes = state.themes,
+		catalog = activeCatalog, fittingItem = fittingItem, playerCount = #Players:GetPlayers(), followCam = World.StudioCams.runway.pos,
+		phase = state.phase, step = state.step, endsAt = state.endsAt, round = state.round, themes = state.themes,
 		presenter = state.presenter, slot = state.slot, showId = state.showId, results = state.results,
+		cam = state.cam, follow = state.follow, line = state.line, reveal = state.reveal, skipped = skips[player.UserId] == true,
 		roster = roster, queue = waiting, queued = queued(player), roundSize = Config.RoundSize,
 		participating = own ~= nil, budget = if own then own.budget else 0,
 		owned = if own then own.owned else {}, looks = if own then own.looks else { {}, {} },
 		saved = if own then own.saved else { false, false },
 		voted = votes[player.UserId] ~= nil, message = message, store = store,
+		profile = Progress.summary(player), leaderboard = Progress.leaderboard,
 	})
 end
 
@@ -102,14 +111,26 @@ end
 
 local function move(player, cf, anchored) moveCharacter(player.Character, cf, anchored) end
 
--- Bots wait beside the runway while others present.
-local function backstage(index)
-	local side = if index % 2 == 0 then 1 else -1
-	return CFrame.lookAt(Vector3.new(side * 14, World.FLOOR + 3, -12 + math.floor((index - 1) / 2) * 6), Vector3.new(0, World.FLOOR + 3, -2))
+local function inStudio(phase)
+	return phase == "Intro" or phase == "Showcase" or phase == "Results"
 end
 
-local function spawnPoint(player)
-	return if Access.canBrowse(state.phase, data[player.UserId] ~= nil) then World.ShoppingStart else World.Lobby
+-- Contestants sit on the studio sofas; spectators watch from the audience area.
+local function seatEntrant(entrant)
+	local seat = World.ContestantSeats[entrant.seat]
+	local char = characterOf(entrant)
+	if not seat or not char then return end
+	if entrant.bot then BotActors.sit(char, seat); return end
+	moveCharacter(char, seat.CFrame * CFrame.new(0, 3, 0), false)
+	local humanoid = char:FindFirstChildOfClass("Humanoid")
+	if humanoid then task.defer(function() if seat.Parent and humanoid.Parent then seat:Sit(humanoid) end end) end
+end
+
+local function homeFor(player)
+	local participating = data[player.UserId] ~= nil
+	if Access.canBrowse(state.phase, participating) then return World.ShoppingStart end
+	if inStudio(state.phase) then return World.StudioAudience end
+	return World.Lobby
 end
 
 local function displayEntrant(entrant)
@@ -117,7 +138,6 @@ local function displayEntrant(entrant)
 	local char = characterOf(entrant)
 	if state.phase == "Showcase" and state.presenter == entrant.id and own then
 		Appearance.apply(char, if own.saved[state.slot] then own.looks[state.slot] else {}, activeCatalog)
-		moveCharacter(char, World.Stage, true)
 	elseif state.phase == "Shopping" and own then
 		Appearance.apply(char, own.looks[own.activeSlot], activeCatalog)
 	else
@@ -128,19 +148,31 @@ end
 local function displayFor(player)
 	local entrant = entrantOf(player)
 	if entrant then displayEntrant(entrant) else Appearance.apply(player.Character, nil, activeCatalog) end
+	Cosmetics.apply(player.Character, Progress.summary(player))
+end
+
+local function placePlayer(player)
+	local entrant = entrantOf(player)
+	if entrant and inStudio(state.phase) and state.presenter ~= entrant.id then seatEntrant(entrant)
+	else move(player, homeFor(player), false) end
 end
 
 local function setupPlayer(player)
+	task.spawn(function()
+		Progress.load(player)
+		if player.Character then Cosmetics.apply(player.Character, Progress.summary(player)) end
+		send(player, if Progress.saving then nil else "Postęp nie zapisuje się (w Studio włącz: Game Settings → Security → API Services).")
+	end)
 	player.CharacterAppearanceLoaded:Connect(function() displayFor(player) end)
 	player.CharacterAdded:Connect(function(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if root and player.Parent then
-			move(player, spawnPoint(player), false)
+			placePlayer(player)
 			-- AppearanceLoaded will reapply after Roblox finishes loading the avatar.
 			if player:HasAppearanceLoaded() then displayFor(player) end
 		end
 	end)
-	if player.Character then move(player, spawnPoint(player), false) end
+	if player.Character then placePlayer(player) end
 	task.defer(broadcast)
 end
 Players.PlayerAdded:Connect(setupPlayer)
@@ -159,7 +191,7 @@ local function join(player)
 	if #queue >= Config.MaxPlayers then send(player, "Komplet zapisów. Spróbuj w następnej rundzie."); return end
 	table.insert(queue, player)
 	local waiting = state.phase == "Lobby" or state.phase == "Intermission"
-	send(player, if waiting then "Zapisano! Za chwilę przeniesiemy Cię do galerii." else "Zapisano na następną rundę — poczekaj w salonie.")
+	send(player, if waiting then "Zapisano! Za chwilę zaczyna się odcinek." else "Zapisano na następny odcinek — poczekaj w salonie.")
 	broadcast()
 end
 
@@ -177,15 +209,32 @@ World.create(openStore, activeCatalog, Garments, join, orderFood)
 local Lighting = game:GetService("Lighting")
 if Lighting.Ambient.R + Lighting.Ambient.G + Lighting.Ambient.B < 0.6 then Lighting.Ambient = Color3.fromRGB(115, 105, 118) end
 
--- Walls contain normal movement. This also covers resets, falls and attempts to
--- move a waiting character outside the room; the decision belongs to the server.
+-- Host and jury live in the studio for the whole session.
+local castFolder = Instance.new("Folder"); castFolder.Name = "ShowCast"; castFolder.Parent = workspace:FindFirstChild("ShoppingQueenPrototype")
+task.spawn(function()
+	cast.host = BotActors.npc(castFolder, Config.Host, World.HostSpot)
+	local root = cast.host and cast.host:FindFirstChild("HumanoidRootPart")
+	if root then root.Anchored = true end
+	for index, definition in ipairs(Config.Jury) do
+		local seat = World.JurySeats[index]
+		local model = BotActors.npc(castFolder, definition, seat.CFrame)
+		if model then BotActors.sit(model, seat) end
+		cast.jury[index] = model
+	end
+end)
+
+-- Keep everyone where the phase needs them: lounge, mall or studio.
 task.spawn(function()
 	while true do
 		for _, player in ipairs(Players:GetPlayers()) do
 			local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-			if root and Access.mustWait(state.phase, data[player.UserId] ~= nil, state.presenter == player.UserId)
-				and not World.isInsideLobby(root.Position) then
-				move(player, World.Lobby, false)
+			if root then
+				local participating = data[player.UserId] ~= nil
+				if inStudio(state.phase) then
+					if not World.isInsideStudio(root.Position) then placePlayer(player) end
+				elseif not Access.canBrowse(state.phase, participating) and not World.isInsideLobby(root.Position) then
+					move(player, World.Lobby, false)
+				end
 			end
 		end
 		task.wait(0.5)
@@ -209,6 +258,18 @@ task.spawn(function()
 	end
 end)
 
+-- Lounge leaderboard board.
+task.spawn(function()
+	while true do
+		local rows = Progress.refresh()
+		local lines = { "🏆 RANKING • TOP 10" }
+		for i, row in ipairs(rows) do table.insert(lines, string.format("%d. %s — ★ %d (%s)", i, row.name, row.stars, row.title)) end
+		if #rows == 0 then table.insert(lines, "Zagraj odcinek, by trafić na tablicę!") end
+		if World.LeaderboardLabel then World.LeaderboardLabel.Text = table.concat(lines, "\n") end
+		task.wait(60)
+	end
+end)
+
 request.OnServerEvent:Connect(function(player, action, payload)
 	if type(action) ~= "string" then return end
 	local now = os.clock()
@@ -216,11 +277,22 @@ request.OnServerEvent:Connect(function(player, action, payload)
 	lastRequest[player] = now
 	if action == "Sync" then send(player); return end
 	if action == "Join" then join(player); return end
+	if action == "Skip" then
+		if state.phase == "Intro" and data[player.UserId] then skips[player.UserId] = true; send(player, "Pominiesz intro, gdy wszystkie uczestniczki się zgodzą.") end
+		return
+	end
 	if type(payload) ~= "table" then return end
+	if action == "BuyCosmetic" or action == "EquipCosmetic" then
+		if type(payload.id) ~= "string" then return end
+		local _, message
+		if action == "BuyCosmetic" then _, message = Progress.buy(player, payload.id) else _, message = Progress.toggle(player, payload.id) end
+		Cosmetics.apply(player.Character, Progress.summary(player))
+		send(player, message); return
+	end
 	local own = data[player.UserId]
 	if not own then send(player, "Najpierw wejdź do gry przy drzwiach salonu."); return end
 	if action == "Vote" then
-		if state.phase ~= "Showcase" or workspace:GetServerTimeNow() >= state.endsAt or payload.showId ~= state.showId then
+		if state.phase ~= "Showcase" or state.step ~= "vote" or workspace:GetServerTimeNow() >= state.endsAt or payload.showId ~= state.showId then
 			send(player, "To głosowanie już się zakończyło."); return
 		end
 		local _, message = Rules.vote(votes, player.UserId, state.presenter, payload.score, eligible())
@@ -265,9 +337,17 @@ local function countdown(seconds, shouldContinue)
 	broadcast()
 	while workspace:GetServerTimeNow() < state.endsAt do
 		if shouldContinue and not shouldContinue() then return false end
-		task.wait(0.25)
+		task.wait(0.2)
 	end
 	return true
+end
+
+-- One spoken line: subtitle for everyone, bubble above the speaker, camera shot.
+local function speak(model, speaker, text, shot)
+	state.line = { speaker = speaker, text = text }
+	if shot then state.cam = World.StudioCams[shot]; state.follow = nil end
+	BotActors.say(model, text, Config.IntroLineSeconds + 1)
+	broadcast()
 end
 
 -- NPC shopping uses the same Rules and deadline as players.
@@ -303,7 +383,9 @@ local function runBot(entrant, round)
 end
 
 local function reset()
-	state.presenter = 0; state.slot = 0; votes = {}
+	state.presenter = 0; state.slot = 0; state.step = nil; state.cam = nil; state.follow = nil; state.line = nil; state.reveal = nil
+	votes = {}; juryVotes = {}; skips = {}
+	World.setConfetti(false)
 	for _, entrant in ipairs(entrants) do
 		if entrant.bot and entrant.model then entrant.model:Destroy() end
 	end
@@ -315,7 +397,199 @@ local function reset()
 end
 
 local function newData()
-	return { budget = Config.Budget, owned = {}, looks = { {}, {} }, saved = { false, false }, activeSlot = 1, scores = {} }
+	return { budget = Config.Budget, owned = {}, looks = { {}, {} }, saved = { false, false }, activeSlot = 1, shows = {} }
+end
+
+local function seatEveryone()
+	for _, entrant in ipairs(entrants) do
+		if present(entrant) then task.spawn(Appearance.apply, characterOf(entrant), nil, activeCatalog); seatEntrant(entrant) end
+	end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if not data[player.UserId] then move(player, World.StudioAudience * CFrame.new(rng:NextNumber(-4, 4), 0, rng:NextNumber(-8, 8)), false) end
+	end
+end
+
+local function allSkipped()
+	local any = false
+	for _, entrant in ipairs(entrants) do
+		if not entrant.bot and present(entrant) then
+			any = true
+			if not skips[entrant.id] then return false end
+		end
+	end
+	return any
+end
+
+local function lookItemName(own, slot)
+	local names = {}
+	for category, id in pairs(own.looks[slot] or {}) do
+		if category ~= "colors" then
+			local item = Rules.item(activeCatalog, id)
+			if item then table.insert(names, item.name) end
+		end
+	end
+	return if #names > 0 then names[rng:NextInteger(1, #names)] else nil
+end
+
+-- Presenter walks the runway at catwalk pace; teleports if a client blocks it.
+local function walkRunway(entrant, showKey)
+	local char = characterOf(entrant)
+	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+	moveCharacter(char, World.RunwayStart, false)
+	humanoid.WalkSpeed = 7
+	humanoid:MoveTo(World.RunwayEnd)
+	local summary = if entrant.player then Progress.summary(entrant.player) else nil
+	Cosmetics.entrance(char, summary)
+	task.delay(6.5, function()
+		if state.showId ~= showKey or not char.Parent then return end
+		local root = char:FindFirstChild("HumanoidRootPart")
+		if root and (root.Position - World.RunwayEnd).Magnitude > 4 then moveCharacter(char, CFrame.lookAt(World.RunwayEnd, World.RunwayEnd - Vector3.new(0, 0, 1)), false) end
+		local pose = Cosmetics.poseId(summary, rng) or (if entrant.bot and rng:NextInteger(1, 2) == 1 then "rbxassetid://507770239" else nil)
+		if pose then BotActors.pose(char, pose) end
+	end)
+end
+
+local function intro()
+	state.phase = "Intro"; state.step = nil
+	seatEveryone()
+	local names = {}
+	for _, entrant in ipairs(entrants) do table.insert(names, entrant.name) end
+	local host = Config.Host.name
+	local lines = {
+		{ "Witajcie w programie Królowa Stylu! Nazywam się " .. host .. " i to ja poprowadzę dzisiejszy odcinek!", "host" },
+		{ "Przywitajmy nasze uczestniczki: " .. table.concat(names, ", ") .. "!", "wide" },
+		{ "Dzisiejsze tematy to „" .. state.themes[1] .. "” oraz „" .. state.themes[2] .. "”.", "host" },
+		{ "Macie " .. Config.Budget .. " zł i tylko " .. math.floor(Config.ShoppingSeconds / 60) .. " minut na zakupy w naszej galerii. Przygotujcie dwie stylizacje — po jednej na każdy temat!", "wide" },
+		{ "Potem wrócicie tutaj, na czerwony dywan. Każda z was przejdzie po wybiegu, a jury — " .. Config.Jury[1].name .. ", " .. Config.Jury[2].name .. " i " .. Config.Jury[3].name .. " — oraz wy same przyznacie od 1 do 5 gwiazdek.", "jury" },
+		{ "Zwyciężczyni zgarnie najwięcej monet i gwiazdek do rankingu. Gotowe? Czas start!", "host" },
+	}
+	for _, line in ipairs(lines) do
+		if allSkipped() then break end
+		speak(cast.host, host, line[1], line[2])
+		if not countdown(Config.IntroLineSeconds, function() return humansPresent() and not allSkipped() end) and not humansPresent() then return false end
+	end
+	return humansPresent()
+end
+
+local function showcase()
+	state.phase = "Showcase"; state.step = "intro"
+	seatEveryone()
+	speak(cast.host, Config.Host.name, "Czas minął! Zapraszam na czerwony dywan — zaczynamy pokaz!", "wide")
+	if not countdown(Config.IntroLineSeconds, humansPresent) then return false end
+	for slot = 1, 2 do
+		for _, entrant in ipairs(entrants) do
+			if not humansPresent() then return false end
+			if not present(entrant) then continue end
+			local own = data[entrant.id]
+			state.presenter = entrant.id; state.slot = slot; state.showId += 1; votes = {}; juryVotes = {}; state.reveal = nil
+			local showKey = state.showId
+			local theme = state.themes[slot]
+			-- 1) Runway walk, camera follows the presenter.
+			state.step = "walk"; state.cam = nil; state.follow = entrant.id
+			displayEntrant(entrant)
+			walkRunway(entrant, showKey)
+			state.line = { speaker = Config.Host.name, text = "Na wybiegu: " .. entrant.name .. "! Temat: „" .. theme .. "”." }
+			BotActors.say(cast.host, state.line.text, 5)
+			if not countdown(Config.PresentSeconds, function() return humansPresent() and present(entrant) end) then
+				if not humansPresent() then return false end
+			end
+			-- 2) Scores: jury comments on camera, contestants vote 1–5 stars.
+			state.step = "vote"; state.follow = nil; state.cam = World.StudioCams.jury
+			for _, other in ipairs(entrants) do
+				if other.bot and other ~= entrant then
+					task.delay(rng:NextNumber(1.5, Config.VoteSeconds - 1.5), function()
+						if state.showId ~= showKey or state.step ~= "vote" then return end
+						Rules.vote(votes, other.id, entrant.id, BotLogic.score(own.saved[slot], own.looks[slot], rng), eligible())
+					end)
+				end
+			end
+			for index, judge in ipairs(Config.Jury) do
+				task.delay(0.4 + (index - 1) * (Config.VoteSeconds - 1) / 3, function()
+					if state.showId ~= showKey or state.step ~= "vote" then return end
+					local score = BotLogic.juryScore(own.saved[slot], own.looks[slot], rng)
+					juryVotes[index] = score
+					local text = BotLogic.comment(score, lookItemName(own, slot), theme, rng) .. "  " .. Scoring.starText(score)
+					state.line = { speaker = judge.name, text = text, stars = score }
+					BotActors.say(cast.jury[index], text, 4)
+					broadcast()
+				end)
+			end
+			countdown(Config.VoteSeconds, humansPresent)
+			-- 3) Reveal the show score.
+			for index in ipairs(Config.Jury) do
+				if not juryVotes[index] then juryVotes[index] = BotLogic.juryScore(own.saved[slot], own.looks[slot], rng) end
+			end
+			local score, jury, crowd, count = Scoring.show(juryVotes, votes, eligible())
+			own.shows[slot] = { score = score, jury = jury, crowd = crowd }
+			state.step = "reveal"; state.follow = entrant.id; state.cam = nil
+			state.reveal = { name = entrant.name, score = score, jury = jury, crowd = crowd, votes = count, theme = theme }
+			state.line = { speaker = Config.Host.name, text = string.format("%s zdobywa %.1f / 5 gwiazdek!", entrant.name, score) }
+			countdown(Config.RevealSeconds, humansPresent)
+			local char = characterOf(entrant)
+			local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+			if humanoid then humanoid.WalkSpeed = 16 end
+			state.presenter = 0
+			task.spawn(Appearance.apply, char, nil, activeCatalog)
+			seatEntrant(entrant)
+		end
+	end
+	return humansPresent()
+end
+
+local function results()
+	local entries, ids = {}, eligible()
+	for _, entrant in ipairs(entrants) do
+		if not ids[entrant.id] then continue end
+		local own = data[entrant.id]
+		table.insert(entries, { userId = entrant.id, name = entrant.name, bot = entrant.bot == true,
+			score = Scoring.final(own.shows), first = own.shows[1] and own.shows[1].score or 0, second = own.shows[2] and own.shows[2].score or 0 })
+	end
+	Rules.rank(entries)
+	for _, entry in ipairs(entries) do
+		entry.reward = Scoring.reward(entry.rank, entry.score)
+		for _, entrant in ipairs(entrants) do
+			if entrant.id == entry.userId and entrant.player and entrant.player.Parent then
+				Progress.award(entrant.player, entry.reward, entry.rank == 1)
+			end
+		end
+	end
+	state.results = entries
+	state.phase = "Results"; state.step = nil; state.presenter = 0; state.slot = 0; state.reveal = nil; votes = {}
+	-- Top three on the podium wearing their best look.
+	for index, entry in ipairs(entries) do
+		for _, entrant in ipairs(entrants) do
+			if entrant.id ~= entry.userId then continue end
+			local char = characterOf(entrant)
+			if index <= 3 then
+				local own = data[entrant.id]
+				local best = if (own.shows[2] and own.shows[2].score or 0) > (own.shows[1] and own.shows[1].score or 0) then 2 else 1
+				task.spawn(Appearance.apply, char, if own.saved[best] then own.looks[best] else nil, activeCatalog)
+				moveCharacter(char, World.PodiumSpots[index], true)
+			end
+		end
+	end
+	for _, player in ipairs(Players:GetPlayers()) do Cosmetics.apply(player.Character, Progress.summary(player)) end
+	local host = Config.Host.name
+	local function nameAt(place)
+		local entry = entries[place]
+		return if entry then string.format("%s (%.1f★)", entry.name, entry.score) else nil
+	end
+	local lines = { { "Czas na podliczenie gwiazdek!", "podium" } }
+	if nameAt(3) then table.insert(lines, { "Trzecie miejsce zajmuje… " .. nameAt(3) .. "!", "podium" }) end
+	if nameAt(2) then table.insert(lines, { "Na drugim miejscu… " .. nameAt(2) .. "!", "podium" }) end
+	table.insert(lines, { "A Królową Stylu tego odcinka zostaje… " .. (nameAt(1) or "") .. "! Gratulacje!", "podium", true })
+	table.insert(lines, { "Dziękuję za wspaniały pokaz! Monety i gwiazdki trafiły już do waszych profili. Do zobaczenia!", "wide" })
+	local perLine = Config.ResultsSeconds / #lines
+	for _, line in ipairs(lines) do
+		if line[3] then World.setConfetti(true) end
+		speak(cast.host, host, line[1], line[2])
+		countdown(perLine)
+	end
+	for _, entrant in ipairs(entrants) do
+		local root = characterOf(entrant) and characterOf(entrant):FindFirstChild("HumanoidRootPart")
+		if root then root.Anchored = false end
+	end
 end
 
 while true do
@@ -328,7 +602,7 @@ while true do
 	pruneQueue()
 	for i = 1, math.min(#queue, Config.MaxPlayers) do
 		local player = queue[i]
-		table.insert(entrants, { id = player.UserId, name = player.DisplayName, player = player })
+		table.insert(entrants, { id = player.UserId, name = player.DisplayName, player = player, seat = i })
 		data[player.UserId] = newData()
 	end
 	queue = {}
@@ -337,11 +611,10 @@ while true do
 	local botCount = math.max(0, Config.RoundSize - #entrants)
 	for i = 1, botCount do
 		local id = -i
-		-- Bots start inside the entrance hall, so closed doors never block their path.
-		local start = CFrame.new(((i - 1) % 4 - 1.5) * 4, World.FLOOR + 4, 52 - math.floor((i - 1) / 4) * 4)
-		local model, description = BotActors.spawn(World.BotFolder, names[i], start, rng)
-		if model then Appearance.setBase(model, description) end
-		table.insert(entrants, { id = id, name = "[BOT] " .. names[i], bot = true, model = model })
+		local seat = #entrants + 1
+		local model, description = BotActors.spawn(World.BotFolder, names[i], World.ContestantSeats[seat].CFrame * CFrame.new(0, 3, 0), rng)
+		if model then Appearance.setBase(model, description); model:SetAttribute("EntrantId", id) end
+		table.insert(entrants, { id = id, name = "[BOT] " .. names[i], bot = true, model = model, seat = seat })
 		data[id] = newData()
 	end
 	local first = rng:NextInteger(1, #Config.Themes)
@@ -350,68 +623,27 @@ while true do
 	state.themes = { Config.Themes[first], Config.Themes[second] }; state.round += 1
 	activeCatalog = Mall.generate(rng, activeCatalog, Config.Palette)
 	World.refreshStock(activeCatalog, Garments, openStore)
-	state.phase = "Shopping"
+	if not intro() then continue end
+	-- Shopping: players appear in front of the mall, bots inside the hall.
+	state.phase = "Shopping"; state.step = nil; state.cam = nil; state.follow = nil; state.line = nil
 	local index = 0
-	for _, entrant in ipairs(entrants) do
-		if entrant.bot then continue end
+	for i, entrant in ipairs(entrants) do
+		if entrant.bot then
+			BotActors.place(entrant.model, CFrame.new(((i - 1) % 4 - 1.5) * 4, World.FLOOR + 4, 52 - math.floor((i - 1) / 4) * 4), false)
+			continue
+		end
 		index += 1
 		move(entrant.player, World.ShoppingStart * CFrame.new(((index - 1) % 4 - 1.5) * 3, 0, math.floor((index - 1) / 4) * 4), false)
 	end
-	for _, player in ipairs(Players:GetPlayers()) do task.spawn(displayFor, player) end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if not data[player.UserId] then move(player, World.Lobby, false) end
+		task.spawn(displayFor, player)
+	end
 	local round = state.round
 	for _, entrant in ipairs(entrants) do
 		if entrant.bot and entrant.model then task.defer(runBot, entrant, round) end
 	end
 	if not countdown(Config.ShoppingSeconds, humansPresent) then continue end
-	local aborted = false
-	for slot = 1, 2 do
-		for _, entrant in ipairs(entrants) do
-			if not humansPresent() then aborted = true; break end
-			if not present(entrant) then continue end
-			state.phase = "Showcase"; state.presenter = entrant.id; state.slot = slot; state.showId += 1; votes = {}
-			-- Outfit changes load assets; run them in parallel, the queue keeps the latest.
-			for _, viewer in ipairs(Players:GetPlayers()) do
-				task.spawn(Appearance.apply, viewer.Character, nil, activeCatalog)
-				move(viewer, World.Lobby, false)
-			end
-			local waitingIndex = 0
-			for _, other in ipairs(entrants) do
-				if other.bot and other ~= entrant then
-					waitingIndex += 1
-					task.spawn(Appearance.apply, other.model, nil, activeCatalog)
-					BotActors.place(other.model, backstage(waitingIndex), false)
-				end
-			end
-			displayEntrant(entrant)
-			-- Bot jurors vote once, at a random moment, never for themselves.
-			local showKey = state.showId
-			for _, juror in ipairs(entrants) do
-				if juror.bot and juror ~= entrant then
-					task.delay(rng:NextNumber(2, Config.VotingSeconds - 3), function()
-						if state.phase ~= "Showcase" or state.showId ~= showKey or workspace:GetServerTimeNow() >= state.endsAt then return end
-						local own = data[entrant.id]
-						Rules.vote(votes, juror.id, entrant.id, BotLogic.score(own.saved[slot], own.looks[slot], rng), eligible())
-					end)
-				end
-			end
-			local completed = countdown(Config.VotingSeconds, function() return humansPresent() and present(entrant) end)
-			data[entrant.id].scores[slot] = table.clone(votes)
-			if entrant.bot then BotActors.place(entrant.model, backstage(1), false) else move(entrant.player, World.Lobby, false) end
-			if not completed and not humansPresent() then aborted = true; break end
-		end
-		if aborted then break end
-	end
-	if aborted then continue end
-	local entries, ids = {}, eligible()
-	for _, entrant in ipairs(entrants) do
-		if not ids[entrant.id] then continue end
-		local own = data[entrant.id]
-		local a, ac = Rules.average(own.scores[1] or {}, ids)
-		local b, bc = Rules.average(own.scores[2] or {}, ids)
-		table.insert(entries, { userId = entrant.id, name = entrant.name, bot = entrant.bot == true, score = (a + b) / 2, first = a, second = b, votes = ac + bc })
-	end
-	state.results = Rules.rank(entries)
-	state.phase = "Results"; state.presenter = 0; state.slot = 0; votes = {}
-	for _, player in ipairs(Players:GetPlayers()) do task.spawn(Appearance.apply, player.Character, nil, activeCatalog); move(player, World.Lobby, false) end
-	countdown(Config.ResultsSeconds)
+	if not showcase() then continue end
+	results()
 end

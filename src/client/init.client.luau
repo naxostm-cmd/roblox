@@ -9,6 +9,7 @@ local Mall = require(shared:WaitForChild("Mall"))
 local Access = require(shared:WaitForChild("Access"))
 local Premium = require(shared:WaitForChild("PremiumCatalog"))
 local UiState = require(shared:WaitForChild("UiState"))
+local Scoring = require(shared:WaitForChild("Scoring"))
 local UI = require(script.UI)
 local FittingPreview = require(script.FittingPreview)
 local Music = require(script.Music)
@@ -28,7 +29,8 @@ local modalWidth, short = 800, false
 local render, adapt
 local categories = { {"store","Ten sklep"}, {"top","👚 Góry"}, {"bottom","👖 Doły"}, {"shoes","👠 Buty"}, {"accessory","👒 Czapki"}, {"bag","👜 Torebki"}, {"jewelry","💍 Biżuteria"}, {"glasses","🕶️ Okulary"}, {"owned","⭐ Moje"} }
 local icons = { top = "👚", bottom = "👖", shoes = "👠", accessory = "👒", bag = "👜", jewelry = "💍", glasses = "🕶️" }
-local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Shopping = "Czas na zakupy", Showcase = "Światła, wybieg!", Results = "Wyniki odcinka" }
+local phases = { Lobby = "Poczekalnia", Intermission = "Za chwilę start", Intro = "Powitanie w studiu", Shopping = "Czas na zakupy", Showcase = "Pokaz na czerwonym dywanie", Results = "Podliczenie gwiazdek" }
+local cutscenePhases = { Intro = true, Showcase = true, Results = true }
 
 -- Top HUD: brand, phase, budget, timer, two themes.
 local hud = UI.glass(root, "RoundHUD", UDim2.fromOffset(760, 118), UDim2.new(0.5, 0, 0, 10), 20)
@@ -98,13 +100,42 @@ local function message(text)
 	toastText.Text = text; toast.Visible = true
 	task.delay(5, function() if toastVersion == version then toast.Visible = false end end)
 end
+-- Cinematic layer: letterbox bars, subtitles, star voting and score reveal.
+local barTop = UI.frame(root, "LetterboxTop", UDim2.new(1, 0, 0, 64), UDim2.fromOffset(0, 0), Color3.new(0, 0, 0), 0); barTop.ZIndex = 0
+local barBottom = UI.frame(root, "LetterboxBottom", UDim2.new(1, 0, 0, 64), UDim2.new(0, 0, 1, -64), Color3.new(0, 0, 0), 0); barBottom.ZIndex = 0
+local subtitleBox = UI.glass(root, "Subtitle", UDim2.fromOffset(720, 92), UDim2.new(0.5, 0, 1, -76), 18)
+subtitleBox.AnchorPoint = Vector2.new(0.5, 1); subtitleBox.Visible = false; subtitleBox.ZIndex = 35
+local speakerLabel = UI.text(subtitleBox, "", UDim2.new(1, -28, 0, 22), UDim2.fromOffset(14, 8), 15, C.Gold, "title")
+local lineLabel = UI.text(subtitleBox, "", UDim2.new(1, -28, 1, -38), UDim2.fromOffset(14, 32), 17, C.Text, "strong")
+lineLabel.TextYAlignment = Enum.TextYAlignment.Top
+local skipButton = UI.button(root, "Pomiń intro  ⏭", UDim2.fromOffset(170, 40), UDim2.new(1, -186, 1, -184), function() request:FireServer("Skip") end, "light")
+skipButton.Visible = false; skipButton.ZIndex = 36
+local votePanel = UI.glass(root, "StarVote", UDim2.fromOffset(420, 128), UDim2.new(0.5, 0, 1, -178), 20)
+votePanel.AnchorPoint = Vector2.new(0.5, 1); votePanel.Visible = false; votePanel.ZIndex = 36
+local voteTitle = UI.text(votePanel, "Oceń stylizację", UDim2.new(1, -24, 0, 26), UDim2.fromOffset(12, 8), 17, C.Text, "title")
+voteTitle.TextXAlignment = Enum.TextXAlignment.Center
+local starButtons = {}
+for stars = 1, Config.MaxStars do
+	local b = UI.button(votePanel, string.rep("★", stars), UDim2.new(0.2, -8, 0, 58), UDim2.new((stars - 1) * 0.2, 4, 0, 50), function()
+		if state then request:FireServer("Vote", { score = stars, showId = state.showId }) end
+	end, if stars >= 4 then "gold" elseif stars == 3 then nil else "light")
+	b.TextSize = if stars >= 4 then 14 else 18
+	starButtons[stars] = b
+end
+local revealCard = UI.frame(root, "Reveal", UDim2.fromOffset(420, 150), UDim2.new(0.5, 0, 0.5, 0), C.White, 24)
+revealCard.AnchorPoint = Vector2.new(0.5, 0.5); revealCard.Visible = false; revealCard.ZIndex = 36
+UI.gradient(revealCard, C.Rose, C.Violet, 20); UI.stroke(revealCard, C.Gold, 0.2, 3)
+local revealName = UI.text(revealCard, "", UDim2.new(1, -24, 0, 28), UDim2.fromOffset(12, 10), 20, C.White, "title"); revealName.TextXAlignment = Enum.TextXAlignment.Center
+local revealStars = UI.text(revealCard, "", UDim2.new(1, -24, 0, 54), UDim2.fromOffset(12, 40), 44, C.Gold, "title"); revealStars.TextXAlignment = Enum.TextXAlignment.Center
+local revealDetail = UI.text(revealCard, "", UDim2.new(1, -24, 0, 40), UDim2.fromOffset(12, 98), 14, C.White, "strong"); revealDetail.TextXAlignment = Enum.TextXAlignment.Center
+local revealScale = Instance.new("UIScale"); revealScale.Parent = revealCard
 local function openPage(page)
 	if opened and view == page then opened = false else view, opened = page, true end
 	detail = nil; render()
 end
 shade.Activated:Connect(function() opened = false; render() end)
 UI.button(modal, "✕", UDim2.fromOffset(38, 38), UDim2.new(1, -54, 0, 16), function() opened = false; render() end, "light")
-local navItems = { { "home", "🏠", "SALON" }, { "wardrobe", "🛍️", "SKLEPY" }, { "premium", "✨", "BUTIK +" }, { "help", "📖", "ZASADY" }, { "music", "🔊", "MUZYKA" } }
+local navItems = { { "home", "🏠", "SALON" }, { "wardrobe", "🛍️", "SKLEPY" }, { "ranking", "🏆", "RANKING" }, { "premium", "✨", "BUTIK" }, { "help", "📖", "ZASADY" }, { "music", "🔊", "MUZYKA" } }
 for i, entry in ipairs(navItems) do
 	local page = entry[1]
 	local width = 1 / #navItems
@@ -185,8 +216,8 @@ local function loungePage()
 		art.BackgroundTransparency = 0.6
 		UI.motif(art, "crown", C.Gold)
 	end
-	info("Jak zacząć?", "Podejdź do szklanych drzwi salonu i naciśnij E albo kliknij „Wejdź do gry”. Po " .. Config.IntermissionSeconds .. " s trafisz przed galerię — drzwi otworzą się same.", 100, "1")
-	info("Grasz sama? Spoko!", "Brakujące miejsca do " .. Config.RoundSize .. " uczestniczek zajmą boty [BOT]. Mają ten sam budżet, robią zakupy i oceniają pokazy.", 100, "2")
+	info("Jak zacząć?", "Podejdź do szklanych drzwi salonu i naciśnij E albo kliknij „Wejdź do gry”. Trafisz do studia, gdzie prowadząca " .. Config.Host.name .. " przedstawi zasady — potem prosto na zakupy!", 100, "1")
+	info("Grasz sama? Spoko!", "Brakujące miejsca do " .. Config.RoundSize .. " uczestniczek zajmą boty [BOT]. Mają ten sam budżet, robią zakupy i oceniają pokazy, a trzyosobowe jury dba o sprawiedliwe gwiazdki.", 100, "2")
 	local card = block(90, C.CardHi); UI.stroke(card, C.Gold, 0.6)
 	UI.text(card, "Mały dodatek. Wielkie wejście.", UDim2.new(1, -28, 0, 28), UDim2.fromOffset(16, 8), 18, C.Text, "bold")
 	UI.button(card, "Odkryj Butik +  →", UDim2.new(1, -32, 0, 38), UDim2.fromOffset(16, 42), function() view, detail = "premium", nil; render() end)
@@ -196,40 +227,72 @@ local function helpPage()
 	info("Wejście do rundy", "Wystarczy jedna osoba. Wolne miejsca do " .. Config.RoundSize .. " uczestniczek zajmą boty. Przygotuj dwie stylizacje do wylosowanych tematów.", 100, "1")
 	info("Zakupy z pomysłem", "Masz " .. Config.Budget .. " zł na obie stylizacje i " .. math.floor(Config.ShoppingSeconds / 60) .. " minut. Galeria ma dwa piętra: ruchome schody są w atrium, schody na końcach skrzydeł.", 100, "2")
 	info("Zapisz oba zestawy", "Kup produkt, dodaj go do zestawu 1 lub 2 i zapisz. Każdy zestaw wymaga góry i dołu. Po zmianie zapisz ponownie.", 100, "3")
-	info("Twój moment na wybiegu", "Oceń pozostałych w skali 1–10. Nie możesz oceniać siebie. Wygrywa najwyższa średnia z obu pokazów.", 92, "4")
-	info("Skróty", "M — Salon • B — Butik + • Esc — zamknij okno", 80, "⌨")
+	info("Czerwony dywan", "Po zakupach wracasz do studia. Każda stylizacja idzie po wybiegu 15 sekund, potem jury (3 osoby) i uczestniczki dają 1–5 gwiazdek. Jury liczy się w połowie — taktyczne „jedynki” nic nie dadzą.", 112, "4")
+	info("Nagrody i ranking", "Za każdy odcinek dostajesz gwiazdki do rankingu i monety. Gwiazdki odblokowują rangi — od Debiutantki do Królowej Stylu. Za monety kupisz dodatki w Butiku.", 104, "5")
+	info("Skróty", "M — Salon • B — Butik • R — Ranking • Esc — zamknij okno", 80, "⌨")
 end
 local function premiumPage()
-	heading.Text = "Butik premium"; subtitle.Text = "KOLEKCJA DODATKÓW • JUŻ WKRÓTCE"
-	if detail then
-		local product
-		for _, candidate in ipairs(Premium) do if candidate.id == detail then product = candidate end end
-		if not product then detail = nil; return end
-		local back = row(38)
-		UI.button(back, "← Cała kolekcja", UDim2.fromOffset(170, 36), nil, function() detail = nil; render() end, "light")
-		local color = Color3.fromRGB(table.unpack(product.color))
-		local art = block(160, C.White)
-		UI.gradient(art, color, color:Lerp(C.Violet, 0.5)); UI.motif(art, product.motif, C.White)
-		info(product.name, product.description, 100)
-		local notice = info("Wkrótce za Robuxy", "To zapowiedź produktu. Cena nie została ustalona, a płatności nie są jeszcze dostępne. Obejrzenie oferty nic nie kosztuje.", 110)
-		UI.stroke(notice, C.Gold, 0.5)
-		return
-	end
-	info("Coś wyjątkowego dla Twojej postaci", "Planowane dodatki kosmetyczne za Robuxy. Poniżej zapowiedzi — produkty nie są jeszcze dostępne do kupienia.", 96, "✦")
+	local profile = state and state.profile
+	local coins = if profile then profile.coins else 0
+	heading.Text = "Butik dodatków"; subtitle.Text = "TYLKO WYGLĄD • ZA MONETY Z POKAZÓW • TWOJE MONETY: " .. coins
+	info("Monety zdobywasz w każdym odcinku", "Udział, gwiazdki i miejsce na podium dają monety. Dodatki są czysto kosmetyczne — nie wpływają na oceny.", 92, "🪙")
 	local columns = UiState.columns(modalWidth - 32)
 	for index = 1, #Premium, columns do
-		local line = row(240)
+		local line = row(250)
 		for column = 1, columns do
 			local product = Premium[index + column - 1]; if not product then break end
-			local card = UI.frame(line, "Product_" .. product.id, UDim2.new(1 / columns, -8, 1, 0), UDim2.new((column - 1) / columns, 0, 0, 0), C.Card, 16); UI.stroke(card)
+			local owned = profile and profile.owned[product.id]
+			local equipped = profile and profile.equipped[product.id]
+			local card = UI.frame(line, "Product_" .. product.id, UDim2.new(1 / columns, -8, 1, 0), UDim2.new((column - 1) / columns, 0, 0, 0), C.Card, 16)
+			UI.stroke(card, if equipped then C.Gold else C.Line, if equipped then 0.2 else 0.86, if equipped then 2 else 1)
 			local color = Color3.fromRGB(table.unpack(product.color))
-			local art = UI.frame(card, "Preview", UDim2.new(1, -16, 0, 100), UDim2.fromOffset(8, 8), C.White, 12)
+			local art = UI.frame(card, "Preview", UDim2.new(1, -16, 0, 96), UDim2.fromOffset(8, 8), C.White, 12)
 			UI.gradient(art, color, color:Lerp(C.Violet, 0.5)); UI.motif(art, product.motif, C.White)
-			UI.badge(art, product.tag, UDim2.fromOffset(56, 22), UDim2.fromOffset(8, 8), C.Ink, C.Gold)
-			UI.text(card, product.name, UDim2.new(1, -24, 0, 28), UDim2.fromOffset(12, 114), 20, C.Text, "title")
-			UI.text(card, "Wkrótce · Robux", UDim2.new(1, -24, 0, 22), UDim2.fromOffset(12, 144), 14, C.Gold, "strong")
-			UI.button(card, "Zobacz zapowiedź  →", UDim2.new(1, -24, 0, 40), UDim2.fromOffset(12, 186), function() detail = product.id; render() end, "light")
+			UI.badge(art, product.tag, UDim2.fromOffset(60, 22), UDim2.fromOffset(8, 8), C.Ink, C.Gold)
+			UI.text(card, product.name, UDim2.new(1, -24, 0, 26), UDim2.fromOffset(12, 110), 19, C.Text, "title")
+			UI.text(card, product.description, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 136), 13, C.Sub)
+			if owned then
+				UI.button(card, if equipped then "✓ Założone — zdejmij" else "Załóż", UDim2.new(1, -24, 0, 40), UDim2.fromOffset(12, 196), function() request:FireServer("EquipCosmetic", { id = product.id }) end, if equipped then "light" else "gold")
+			else
+				UI.button(card, "🪙 " .. product.price .. "  •  Kup", UDim2.new(1, -24, 0, 40), UDim2.fromOffset(12, 196), function() request:FireServer("BuyCosmetic", { id = product.id }) end, if coins >= product.price then nil else "light")
+			end
 		end
+	end
+end
+local function rankingPage()
+	heading.Text = "Ranking i rangi"; subtitle.Text = "GWIAZDKI Z POKAZÓW • TOP 10 GRACZY"
+	local profile = state and state.profile
+	if profile then
+		local card = block(150, C.White); UI.gradient(card, C.Rose, C.Violet, 20)
+		UI.badge(card, "TWOJA RANGA", UDim2.fromOffset(120, 24), UDim2.fromOffset(16, 14), C.Ink, C.Gold)
+		UI.text(card, "★ " .. profile.title, UDim2.new(1, -32, 0, 34), UDim2.fromOffset(16, 42), 26, C.White, "title")
+		UI.text(card, string.format("★ %d gwiazdek   •   🪙 %d monet   •   🏆 %d wygranych   •   🎬 %d odcinków", profile.stars, profile.coins, profile.wins, profile.rounds), UDim2.new(1, -32, 0, 22), UDim2.fromOffset(16, 80), 14, C.White, "strong")
+		local track = UI.frame(card, "RankTrack", UDim2.new(1, -32, 0, 10), UDim2.fromOffset(16, 112), C.Ink, 5)
+		local previousAt = Scoring.Ranks[profile.rank][1]
+		local share = if profile.nextAt then math.clamp((profile.stars - previousAt) / (profile.nextAt - previousAt), 0, 1) else 1
+		local fill = UI.frame(track, "Fill", UDim2.fromScale(share, 1), nil, C.White, 5); UI.gradient(fill, C.Gold, C.White, 0)
+		UI.text(card, if profile.nextAt then ("Do kolejnej rangi: " .. (profile.nextAt - profile.stars) .. " ★") else "Najwyższa ranga — jesteś legendą! 👑", UDim2.new(1, -32, 0, 18), UDim2.fromOffset(16, 126), 13, C.White, "strong")
+		if not profile.saving then info("Postęp nie jest zapisywany", "DataStore jest niedostępny (w Studio włącz Game Settings → Security → Enable Studio Access to API Services).", 92, "!") end
+	end
+	local header = row(28)
+	UI.text(header, "🏆 TOP 10", UDim2.fromScale(1, 1), nil, 15, C.Gold, "title")
+	for index, entry in ipairs(state and state.leaderboard or {}) do
+		local line = block(52, if index == 1 then C.CardHi else C.Card); UI.stroke(line, if index <= 3 then C.Gold else C.Line, if index <= 3 then 0.5 else 0.86)
+		local medal = if index == 1 then "👑" elseif index == 2 then "🥈" elseif index == 3 then "🥉" else tostring(index) .. "."
+		local m = UI.text(line, medal, UDim2.fromOffset(44, 52), UDim2.fromOffset(8, 0), 20, C.Text, "title"); m.TextXAlignment = Enum.TextXAlignment.Center
+		UI.text(line, entry.name, UDim2.new(0.5, -60, 1, 0), UDim2.fromOffset(56, 0), 16, C.Text, "bold")
+		UI.text(line, entry.title .. "  •  ★ " .. entry.stars, UDim2.new(0.5, -12, 1, 0), UDim2.new(0.5, 0, 0, 0), 14, C.Gold, "strong")
+	end
+	if not state or #(state.leaderboard or {}) == 0 then info("Tablica jest jeszcze pusta", "Zagraj odcinek, by zdobyć pierwsze gwiazdki i trafić do rankingu.", 84, "★") end
+	local ladder = row(28)
+	UI.text(ladder, "WSZYSTKIE RANGI", UDim2.fromScale(1, 1), nil, 15, C.Gold, "title")
+	local stars = if profile then profile.stars else 0
+	for _, entry in ipairs(Scoring.Ranks) do
+		local unlocked = stars >= entry[1]
+		local line = block(40, if unlocked then C.CardHi else C.Card)
+		UI.text(line, (if unlocked then "✓  " else "🔒  ") .. entry[2], UDim2.new(0.7, -16, 1, 0), UDim2.fromOffset(16, 0), 15, if unlocked then C.Text else C.Faint, "bold")
+		local need = UI.text(line, "★ " .. entry[1], UDim2.new(0.3, -16, 1, 0), UDim2.new(0.7, 0, 0, 0), 14, C.Gold, "strong")
+		need.TextXAlignment = Enum.TextXAlignment.Right
 	end
 end
 local function directoryPage()
@@ -365,41 +428,28 @@ local function wardrobePage()
 end
 local function roundPage()
 	if not state then loungePage(); return end
-	if state.phase == "Results" then
-		heading.Text = "Gwiazdy tego odcinka"; subtitle.Text = "DWA POKAZY • JEDEN WIELKI FINAŁ"
+	if state.phase == "Results" or (state.phase == "Lobby" and #state.results > 0) then
+		heading.Text = "Wyniki odcinka"; subtitle.Text = "GWIAZDKI OD JURY I UCZESTNICZEK • ŚREDNIA Z DWÓCH POKAZÓW"
 		for _, entry in ipairs(state.results) do
 			local winner = entry.rank == 1
-			local card = block(92, if winner then C.White else C.Card)
-			if winner then UI.gradient(card, C.Gold, Color3.fromRGB(226, 150, 86), 20) else UI.stroke(card) end
+			local mine = entry.userId == player.UserId
+			local card = block(104, if winner then C.White else C.Card)
+			if winner then UI.gradient(card, C.Gold, Color3.fromRGB(226, 150, 86), 20) else UI.stroke(card, if mine then C.Rose else C.Line, if mine then 0.3 else 0.86, if mine then 2 else 1) end
 			local medal = if entry.rank == 1 then "👑" elseif entry.rank == 2 then "🥈" elseif entry.rank == 3 then "🥉" else "#" .. entry.rank
-			local badge = UI.text(card, medal, UDim2.fromOffset(56, 56), UDim2.fromOffset(12, 18), 30, if winner then C.Ink else C.Text, "title")
+			local badge = UI.text(card, medal, UDim2.fromOffset(56, 56), UDim2.fromOffset(12, 22), 30, if winner then C.Ink else C.Text, "title")
 			badge.TextXAlignment = Enum.TextXAlignment.Center
-			UI.text(card, entry.name .. (if entry.userId == player.UserId then "  (Ty)" else ""), UDim2.new(1, -90, 0, 28), UDim2.fromOffset(76, 12), 20, if winner then C.Ink else C.Text, "title")
-			UI.text(card, string.format("%.2f / 10   •   pokazy: %.2f i %.2f   •   głosy: %d", entry.score, entry.first, entry.second, entry.votes), UDim2.new(1, -90, 0, 36), UDim2.fromOffset(76, 44), 14, if winner then C.Ink else C.Sub, "strong")
+			local ink = if winner then C.Ink else C.Text
+			UI.text(card, entry.name .. (if mine then "  (Ty)" else ""), UDim2.new(1, -90, 0, 26), UDim2.fromOffset(76, 10), 20, ink, "title")
+			UI.text(card, Scoring.starText(entry.score) .. string.format("  %.1f / 5", entry.score), UDim2.new(1, -90, 0, 26), UDim2.fromOffset(76, 38), 18, if winner then C.Ink else C.Gold, "title")
+			local reward = entry.reward
+			UI.text(card, string.format("Pokazy: %.1f★ i %.1f★", entry.first, entry.second) .. (if reward and not entry.bot then string.format("   •   +%d ★   +%d 🪙", reward.stars, reward.coins) else ""), UDim2.new(1, -90, 0, 22), UDim2.fromOffset(76, 68), 14, if winner then C.Ink else C.Sub, "strong")
 		end
-		info("Oceny botów są symulowane", "Boty oceniają kompletne, zapisane zestawy wyżej. To tryb testowy — prawdziwi gracze oceniają sami.", 92, "🤖")
-	elseif state.phase == "Showcase" then
-		local name = "Uczestniczka"
-		for _, person in ipairs(state.roster) do if person.userId == state.presenter then name = person.name end end
-		heading.Text = "Oceń stylizację"; subtitle.Text = string.upper(name) .. " • " .. string.upper(state.themes[state.slot] or "")
-		if state.presenter == player.UserId then info("To Twój moment!", "Zaprezentuj stylizację. Pozostali właśnie wystawiają oceny.", 95, "✨")
-		elseif not state.participating then info("Miejsce w pierwszym rzędzie", "Oglądasz pokaz. Zagłosujesz, gdy weźmiesz udział w kolejnej rundzie.", 95, "👀")
-		elseif state.voted then info("Dziękujemy za ocenę", "Twój głos jest zapisany. Za chwilę kolejna stylizacja.", 95, "✓")
-		else
-			local legend = row(24)
-			UI.text(legend, "1 = słabo   •   10 = zachwycająco", UDim2.fromScale(1, 1), nil, 14, C.Sub, "strong")
-			for rowIndex = 0, 1 do
-				local line = row(48)
-				for column = 1, 5 do
-					local score, showId = rowIndex * 5 + column, state.showId
-					local b = UI.button(line, tostring(score), UDim2.new(0.2, -6, 0, 46), UDim2.fromScale((column - 1) * 0.2, 0), function() request:FireServer("Vote", { score = score, showId = showId }) end, if score >= 8 then "gold" elseif score >= 5 then nil else "light")
-					b.TextSize = 20; b.FontFace = UI.Fonts.Title
-				end
-			end
-		end
-	else loungePage() end
+		info("Jak liczymy?", "Każdy pokaz: połowa to średnia 3 jurorów, połowa — średnia gwiazdek od uczestniczek. Oceny botów są symulowane.", 92, "★")
+	else
+		heading.Text = "Pokaz trwa"; subtitle.Text = "PATRZ NA WYBIEG"
+		info("Czerwony dywan", "Ocenianie pojawi się na dole ekranu, gdy modelka zejdzie z wybiegu.", 84, "🎤")
+	end
 end
-
 local renderedView, renderedDetail, renderedPhase, renderedShow, revision = nil, nil, nil, nil, 0
 local function rosterText()
 	if not state then return "", 0 end
@@ -428,17 +478,42 @@ render = function()
 	local showing = state and (state.phase == "Showcase" or state.phase == "Results")
 	navEntries.wardrobe.icon.Text = if showing then "🎤" else "🛍️"
 	navEntries.wardrobe.label.Text = if showing then "OCENY" else "SKLEPY"
-	local canJoin = state ~= nil and not state.participating and not opened
+	local cinematic = state ~= nil and cutscenePhases[state.phase] == true
+	local canJoin = state ~= nil and not state.participating and not opened and not cinematic
 	joinCard.Visible = canJoin and not short
-	toast.Position = UDim2.new(0.5, 0, 1, if joinCard.Visible then -172 else -84)
+	barTop.Visible = cinematic; barBottom.Visible = cinematic
+	dock.Visible = not cinematic or state.phase == "Results"
+	local line = state and state.line
+	subtitleBox.Visible = cinematic and line ~= nil and not opened
+	if line then speakerLabel.Text = string.upper(line.speaker or ""); lineLabel.Text = line.text or "" end
+	skipButton.Visible = state ~= nil and state.phase == "Intro" and state.participating and not state.skipped
+	local voting = state ~= nil and state.phase == "Showcase" and state.step == "vote" and state.participating and state.presenter ~= player.UserId
+	votePanel.Visible = voting and not opened
+	if voting then
+		voteTitle.Text = if state.voted then "Dziękujemy! Twoje gwiazdki są zapisane ✓" else "Ile gwiazdek dajesz tej stylizacji?"
+		for _, b in pairs(starButtons) do b.Visible = not state.voted end
+	end
+	local reveal = state and state.phase == "Showcase" and state.step == "reveal" and state.reveal
+	if reveal and not revealCard.Visible then
+		revealScale.Scale = 0.6
+		game:GetService("TweenService"):Create(revealScale, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+	end
+	revealCard.Visible = reveal ~= nil and reveal ~= false
+	if reveal then
+		revealName.Text = reveal.name .. " • " .. (reveal.theme or "")
+		revealStars.Text = Scoring.starText(reveal.score) .. string.format(" %.1f", reveal.score)
+		revealDetail.Text = string.format("Jury: %.1f★   •   Uczestniczki: %s", reveal.jury, if reveal.votes > 0 then string.format("%.1f★ (%d)", reveal.crowd, reveal.votes) else "brak głosów")
+	end
+	toast.Position = UDim2.new(0.5, 0, 1, if joinCard.Visible then -172 elseif cinematic then -316 else -84)
 	if state then
 		joinTitle.Text = if state.queued then "✓  ZAPISANO" else "✨  WEJDŹ DO GRY"
 		joinSub.Text = if state.queued then (if state.phase == "Intermission" then "Start za chwilę — przeniesiemy Cię przed galerię" else "Poczekaj na koniec bieżącej rundy")
 			else Config.Budget .. " zł • " .. math.floor(Config.ShoppingSeconds / 60) .. " minut • brakujące miejsca zajmą boty"
 		local phase = phases[state.phase] or state.phase
 		phaseLabel.Text = phase .. (if state.phase == "Shopping" and not state.participating then " • oglądasz z salonu" else "")
-		wallet.Text = if state.participating then state.budget .. " zł" else "—"
-		walletCaption.Text = if state.participating then "BUDŻET" else "GRACZE: " .. (state.playerCount or 1)
+		local shopping = state.participating and state.phase == "Shopping"
+		wallet.Text = if shopping then state.budget .. " zł" else "🪙 " .. (if state.profile then state.profile.coins else 0)
+		walletCaption.Text = if shopping then "BUDŻET" else "MONETY"
 		for i, chip in ipairs(themeChips) do
 			chip.text.Text = state.themes[i] or (if i == 1 then "Zapisz się przy drzwiach salonu" else "Temat poznasz po starcie")
 			chip.text.TextColor3 = if state.themes[i] then C.Text else C.Sub
@@ -447,7 +522,7 @@ render = function()
 		rosterList.Text = text
 		rosterTitle.Text = if state.phase == "Lobby" or state.phase == "Intermission" then "ZAPISANI DO RUNDY" else "UCZESTNICZKI"
 		rosterPanel.Size = UDim2.fromOffset(230, 40 + count * 19)
-		rosterPanel.Visible = count > 0 and not short and not opened
+		rosterPanel.Visible = count > 0 and not short and not opened and not cinematic
 	end
 	local resetScroll = renderedView ~= view or renderedDetail ~= detail
 		or (view == "round" and state and (renderedPhase ~= state.phase or renderedShow ~= state.showId))
@@ -459,6 +534,7 @@ render = function()
 	elseif view == "directory" then directoryPage()
 	elseif view == "help" then helpPage()
 	elseif view == "round" then roundPage()
+	elseif view == "ranking" then rankingPage()
 	else loungePage() end
 	renderedView, renderedDetail = view, detail
 	if state then renderedPhase, renderedShow = state.phase, state.showId end
@@ -495,8 +571,11 @@ adapt = function()
 	dock.Size = UDim2.fromOffset(math.min(600, size.X - 24), 64)
 	toast.Size = UDim2.fromOffset(math.min(520, size.X - 24), 56)
 	joinCard.Size = UDim2.fromOffset(math.min(380, size.X - 24), 78)
-	local voting = view == "round" and state and state.phase == "Showcase"
-	modalWidth = if voting then math.min(380, size.X - 24) else math.min(900, size.X - 24)
+	local voting = false
+	modalWidth = math.min(900, size.X - 24)
+	subtitleBox.Size = UDim2.fromOffset(math.min(720, size.X - 24), 92)
+	votePanel.Size = UDim2.fromOffset(math.min(420, size.X - 24), 128)
+	revealCard.Size = UDim2.fromOffset(math.min(420, size.X - 24), 150)
 	local height = math.min(if voting then 290 else 590, math.max(120, size.Y - hudHeight - 104))
 	local top = hudHeight + 22
 	if voting and size.X >= 650 then
@@ -512,11 +591,22 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	if input.KeyCode == Enum.KeyCode.B then openPage("premium")
 	elseif input.KeyCode == Enum.KeyCode.M then openPage("home")
+	elseif input.KeyCode == Enum.KeyCode.R then openPage("ranking")
 	elseif input.KeyCode == Enum.KeyCode.Escape and opened then opened = false; render() end
 end)
+-- Movement is locked during cutscenes; the server walks the runway for you.
+local controls
+pcall(function() controls = require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls() end)
+local controlsLocked = false
+local function lockControls(locked)
+	if not controls or locked == controlsLocked then return end
+	controlsLocked = locked
+	if locked then controls:Disable() else controls:Enable() end
+end
+local phaseDuration = 1
 local function mood(packet)
 	if packet.phase == "Shopping" and packet.participating then return "Shopping" end
-	if packet.phase == "Showcase" then return "Showcase" end
+	if packet.phase == "Showcase" or packet.phase == "Intro" then return "Showcase" end
 	if packet.phase == "Results" then return "Results" end
 	return "Lobby"
 end
@@ -525,6 +615,11 @@ update.OnClientEvent:Connect(function(packet)
 	view, opened = UiState.receive(previous, packet, view, opened)
 	state = packet
 	Music.setMood(mood(packet))
+	if not previous or previous.endsAt ~= packet.endsAt then phaseDuration = math.max(1, packet.endsAt - workspace:GetServerTimeNow()) end
+	lockControls(cutscenePhases[packet.phase] == true)
+	if packet.profile and previous and previous.profile and packet.profile.rank > previous.profile.rank then
+		message("🎉 Nowa ranga: " .. packet.profile.title .. "!")
+	end
 	if packet.fittingItem then fittingItem = packet.fittingItem end
 	if packet.store then
 		currentStore = packet.store; category = "store"
@@ -541,12 +636,12 @@ update.OnClientEvent:Connect(function(packet)
 	if packet.phase == "Shopping" and (not previous or previous.phase ~= "Shopping") and packet.participating then
 		message("Start! Wejdź przez automatyczne drzwi, kup produkty i zapisz dwa zestawy 🛍️")
 	end
-	if packet.phase == "Showcase" and (not previous or previous.phase ~= "Showcase") then
-		-- The runway may be outside the streamed area around the lounge.
-		task.spawn(function() pcall(function() player:RequestStreamAroundAsync(packet.stagePosition) end) end)
+	if packet.cam and (not previous or not previous.cam or previous.cam.pos ~= packet.cam.pos) then
+		-- The studio may be outside the streamed area; ask the server to stream it.
+		task.spawn(function() pcall(function() player:RequestStreamAroundAsync(packet.cam.look) end) end)
 	end
 	local camera = workspace.CurrentCamera
-	if camera and previous and previous.phase == "Showcase" and packet.phase ~= "Showcase" then
+	if camera and previous and cutscenePhases[previous.phase] and not cutscenePhases[packet.phase] then
 		camera.CameraType = Enum.CameraType.Custom
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 		if humanoid then camera.CameraSubject = humanoid end
@@ -560,14 +655,34 @@ RunService.RenderStepped:Connect(function()
 	timer.Text = if state.endsAt == 0 then "—:—" else string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
 	clockCaption.Text = if state.endsAt == 0 then "CZEKAMY" else "DO KOŃCA"
 	timer.TextColor3 = if state.endsAt > 0 and left <= 10 then Color3.fromRGB(255, 230, 120) else C.White
-	local duration = ({ Intermission = Config.IntermissionSeconds, Shopping = Config.ShoppingSeconds, Showcase = Config.VotingSeconds, Results = Config.ResultsSeconds })[state.phase]
-	progress.Size = UDim2.fromScale(if duration then math.clamp(left / duration, 0, 1) else 0, 1)
+	progress.Size = UDim2.fromScale(if state.endsAt > 0 then math.clamp(left / phaseDuration, 0, 1) else 0, 1)
 	-- Gentle pulse on the join button so it is easy to spot.
 	if joinCard.Visible and not state.queued then joinScale.Scale = 1 + 0.025 * math.sin(os.clock() * 4) else joinScale.Scale = 1 end
-	-- Reapply after character resets too; the default camera script may reset itself.
-	if state.phase == "Showcase" and workspace.CurrentCamera then
-		local camera = workspace.CurrentCamera; local stage = state.stagePosition
-		camera.CameraType = Enum.CameraType.Scriptable; camera.CFrame = CFrame.lookAt(stage + Vector3.new(0, 3, 17), stage + Vector3.new(0, -1, 0))
+	-- Cutscene camera: a fixed shot, or a shot that tracks the presenter.
+	local camera = workspace.CurrentCamera
+	if camera and cutscenePhases[state.phase] then
+		local goal
+		if state.follow then
+			local target
+			if state.follow > 0 then
+				local who = Players:GetPlayerByUserId(state.follow)
+				target = who and who.Character
+			else
+				local mall = workspace:FindFirstChild("ShoppingQueenPrototype")
+				local bots = mall and mall:FindFirstChild("Bots")
+				for _, model in ipairs(bots and bots:GetChildren() or {}) do
+					if model:GetAttribute("EntrantId") == state.follow then target = model end
+				end
+			end
+			local head = target and target:FindFirstChild("Head")
+			if head then goal = CFrame.lookAt(state.followCam, head.Position - Vector3.new(0, 1, 0)) end
+		elseif state.cam then
+			goal = CFrame.lookAt(state.cam.pos, state.cam.look)
+		end
+		if goal then
+			if camera.CameraType ~= Enum.CameraType.Scriptable then camera.CameraType = Enum.CameraType.Scriptable; camera.CFrame = goal end
+			camera.CFrame = camera.CFrame:Lerp(goal, 0.08)
+		end
 	end
 end)
 render()

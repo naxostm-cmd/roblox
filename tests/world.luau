@@ -102,6 +102,8 @@ return function(source, configSource, garmentsSource, mallSource)
 		workspace = workspace, Instance = { new = instance }, Enum = enum,
 		Vector3 = { new = vec, zero = vec() }, Color3 = { fromRGB = vec, new = vec },
 		CFrame = CFrameLib, UDim2 = { fromScale = function(...) return { ... } end },
+		NumberRange = { new = function(...) return { ... } end }, NumberSequence = { new = function(...) return { ... } end },
+		ColorSequence = { new = function(...) return { ... } end }, Vector2 = { new = function(...) return { ... } end },
 	}, { __index = getfenv() })
 	local loader = assert(loadstring(source))
 	setfenv(loader, env)
@@ -249,6 +251,30 @@ return function(source, configSource, garmentsSource, mallSource)
 		end
 	end
 	assert(supported(World.ShoppingStart.Position.X, F + 0.2, World.ShoppingStart.Position.Z), "start point stands on the plaza")
+	-- TV studio: closed room, 8 contestant seats, 3 jury chairs, runway and podium.
+	local S = World.StudioCenter
+	local contestantSeats, jurySeats = 0, 0
+	for _, p in ipairs(parts) do
+		if p.Name == "ContestantSeat" then contestantSeats += 1 end
+		if p.Name == "JurySeat" then jurySeats += 1 end
+	end
+	assert(contestantSeats == 8 and #World.ContestantSeats == 8 and jurySeats == 3 and #World.JurySeats == 3, "studio seating")
+	for _, y in ipairs({ F + 3, F + 12, F + 22 }) do
+		for x = -34, 34, 4 do assert(solid(x, y, S.Z - 34.5) and solid(x, y, S.Z + 34.5), "studio front/back wall") end
+		for z = S.Z - 32, S.Z + 32, 4 do assert(solid(-36.5, y, z) and solid(36.5, y, z), "studio side walls") end
+	end
+	for x = -32, 32, 8 do for z = S.Z - 30, S.Z + 30, 8 do assert(solid(x, F + 26.5, z), "studio roof") end end
+	assert(World.isInsideStudio(World.RunwayStart.Position) and World.isInsideStudio(World.StudioAudience.Position), "studio spots inside")
+	assert(not World.isInsideStudio(World.Lobby.Position) and not World.isInsideLobby(World.RunwayStart.Position), "studio is a separate room")
+	assert(supported(0, F + 2, World.RunwayStart.Position.Z) and supported(0, F + 2, World.RunwayEnd.Z), "runway walkway")
+	clear("runway walk", vec(0, F + 2.2, World.RunwayStart.Position.Z), vec(0, F + 2.2, World.RunwayEnd.Z))
+	for i, spot in ipairs(World.PodiumSpots) do
+		assert(supported(spot.Position.X, spot.Position.Y - 3, spot.Position.Z), "podium " .. i .. " top")
+	end
+	assert(supported(World.StudioAudience.Position.X, F + 0.2, World.StudioAudience.Position.Z), "audience floor")
+	for _, name in ipairs({ "wide", "host", "jury", "podium" }) do
+		assert(World.isInsideStudio(World.StudioCams[name].pos), "camera " .. name .. " inside studio")
+	end
 	assert(World.Stage.Position.Y > F + 2, "stage above floor")
 	assert(#parts < 7000, "part budget")
 	-- Exercise every generated design on both supported rig layouts.
@@ -292,5 +318,5 @@ return function(source, configSource, garmentsSource, mallSource)
 	end
 	World.create(function() end)
 	assert(mall.destroyed and not original.destroyed, "rebuild must replace only generated gallery")
-	print("PASS: two-storey mall, 20 shops + 4 extra units, food court, escalators, stairs, auto doors, routes, enclosed lounge (" .. #parts .. " parts)")
+	print("PASS: two-storey mall, 20 shops + 4 extra units, food court, escalators, stairs, auto doors, routes, enclosed lounge, TV studio (" .. #parts .. " parts)")
 end

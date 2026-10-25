@@ -37,13 +37,32 @@ Lokale kursywą są dekoracyjne: mają wystrój, ale nic w nich nie sprzedajemy.
 
 **Oferta jest losowana na początku każdej rundy.** Każdy lokal ma trzy produkty z puli swojej kategorii (8–12 przedmiotów), łącznie 60 ofert z 66 przedmiotów. Każdy sklep zmienia co najmniej jeden fason względem poprzedniej rundy. Wszyscy widzą tę samą ofertę i ceny. Kupować i przymierzać można tylko wewnątrz sklepu lub tuż przed jego wejściem, na tym samym piętrze.
 
+## Odcinek jak w Shopping Queen
+
+1. **Intro w studiu (ok. 27 s)** — wszystkie uczestniczki siedzą na kanapach w osobnym studiu TV. Prowadząca **Gabriela** stoi w eleganckiej stylizacji z katalogu. Kamera pokazuje ją i studio, a Gabriela wita uczestniczki po imieniu, podaje dwa tematy, budżet 1500 zł i 8 minut, przedstawia jury i zasady. Napisy pojawiają się na dole ekranu, nad jej głową wyświetla się dymek. Gdy wszyscy prawdziwi gracze klikną **Pomiń intro**, zakupy startują od razu.
+2. **Zakupy (8 minut)** — jak dotąd w galerii.
+3. **Pokaz na czerwonym dywanie** — po 8 minutach wszystkie wracają do studia. Każda stylizacja wychodzi na wybieg na **15 sekund**: serwer sam prowadzi postać krokiem modelki, a kamera ją śledzi. Pozostałe siedzą.
+4. **Ocena (10 s)** — kamera przechodzi na jury. **Marco, Lili i Victor** po kolei komentują stylizację, wymieniając nazwę prawdziwego przedmiotu z zestawu, i dają 1–5 gwiazdek. W tym czasie uczestniczki oceniają gwiazdkami na dole ekranu (nie da się ocenić siebie).
+5. **Wynik (4 s)** — karta z gwiazdkami: średnia jury i średnia uczestniczek. **Jury liczy się w połowie**, więc taktyczne „jedynki” od rywalek nie zatopią dobrej stylizacji.
+6. **Podliczenie** — trzy najlepsze stają na podium w najlepszym zestawie. Gabriela ogłasza 3., 2. i 1. miejsce, sypie się konfetti, a nagrody trafiają do profili.
+
+Podczas cutscenek sterowanie jest zablokowane, pojawiają się kinowe czarne pasy, a kamera pokazuje ujęcia: prowadzącą, studio, jury, wybieg, podium. Widzowie bez udziału w rundzie oglądają pokaz z widowni w studiu.
+
+## Gwiazdki, rangi, monety i ranking
+
+- Za odcinek: **gwiazdki** = średnia × 2 (+5 / +3 / +1 za podium) i **monety** = 20 + 5 za każdą gwiazdkę (+100 / +60 / +30 za podium).
+- Gwiazdki z całej kariery odblokowują **rangi**: Debiutantka → Stylowa Nowicjuszka → Modowa Entuzjastka → Fashionistka → Trendsetterka → Stylistka → Ikona Stylu → Projektantka → Supermodelka → **Królowa Stylu** (1500 ★). Ranga wisi nad głową gracza, a gwiazdki i monety widać na liście graczy (leaderstats).
+- **Ranking**: zakładka 🏆 (profil, pasek postępu do kolejnej rangi, TOP 10, lista rang) oraz tablica na placu obok salonu.
+- **Butik** — sklep za monety z dodatkami czysto kosmetycznymi: VIP Style (300), Runway Poses (400), Rose Aura (500), Golden Entrance (750), Star Crown (1000), Diamond Name (1500). Kupione dodatki można zakładać i zdejmować.
+- Postęp zapisuje się w **DataStore**. W Studio włącz: *Game Settings → Security → Enable Studio Access to API Services*. Bez tego gra działa, ale postęp nie jest zapamiętywany i gra o tym informuje.
+
 ## Tryb z botami
 
 Start jest dobrowolny: sama obecność w salonie nie zapisuje do rundy. Po pierwszym zgłoszeniu trwa 5-sekundowe odliczanie, podczas którego mogą zapisać się inni. Jedna osoba gra z trzema botami, dwie z dwoma, trzy z jednym. Od czterech graczy boty nie są potrzebne; limit to 8 prawdziwych graczy. Kto zapisze się w trakcie rundy, zagra w następnej. Po wynikach trzeba ponownie użyć wejścia.
 
 Boty są oznaczone **[BOT]**, mają własne postacie R15 z fryzurami i animacją chodu. Startują w holu, chodzą po galerii z pathfindingiem (także po schodach). Jeśli utkną, przenoszą się do celu. Kupują z bieżącej kolekcji przez te same reguły cen, budżetu (1500 zł) i kolorów co gracze. Najpierw kompletują górę i dół obu zestawów, potem dodatki, i zapisują obie stylizacje. Po skończonych zakupach odpoczywają w food court. Po upływie 8 minut nie kupują już niczego.
 
-Boty prezentują oba zestawy i głosują raz na pokaz, nigdy na siebie. Oceny są **symulowane**: 6–10 za kompletny zapisany zestaw (z bonusem za dużo dodatków), 1–4 za brak zapisu. Nie analizują zgodności z tematem. Gracz może oceniać boty, a ranking zawiera wszystkich aktywnych uczestników. Runda trwa, dopóki jest w niej przynajmniej jeden prawdziwy gracz. Gdy wyjdzie ostatni, runda zostaje anulowana, a boty usunięte.
+Boty prezentują oba zestawy i głosują raz na pokaz, nigdy na siebie. Ich gwiazdki i oceny jury są **symulowane**: kompletny zapisany zestaw dostaje więcej (bonus za dodatki), brak zapisu 1 gwiazdkę. Nie analizują zgodności z tematem. Gracz może oceniać boty, a ranking zawiera wszystkich aktywnych uczestników. Runda trwa, dopóki jest w niej przynajmniej jeden prawdziwy gracz. Gdy wyjdzie ostatni, runda zostaje anulowana, a boty usunięte.
 
 ## Zakupy, stylizacje i przebieg rundy
 
@@ -51,7 +70,7 @@ Boty prezentują oba zestawy i głosują raz na pokaz, nigdy na siebie. Oceny s�
 - **Podgląd** pokazuje miniaturkę prawdziwego produktu; na awatarze R6 obracany podgląd uproszczonej wersji z wyborem 6 kolorów.
 - **Przymierz na postaci** zakłada produkt, ale nie zmienia budżetu ani zestawu. **Zakończ przymiarkę** przywraca aktualny zestaw.
 - Kup produkt, dodaj go do zestawu 1 lub 2 i zapisz. Każdy zestaw wymaga góry i dołu. Dodatki (buty, nakrycie głowy, torebka, biżuteria, okulary) można łączyć.
-- Pokazy: każda uczestniczka prezentuje zestaw 1, potem wszystkie zestaw 2; na ocenę jest 15 sekund. Wynik to średnia z dwóch pokazów, remisy dają wspólne miejsca. Wyniki są widoczne przez 20 sekund.
+- Pokazy: każda uczestniczka prezentuje zestaw 1, potem wszystkie zestaw 2. Wynik to średnia z dwóch pokazów, remisy dają wspólne miejsca.
 
 ## Prawdziwe ubrania z katalogu Roblox
 
@@ -80,14 +99,14 @@ Interfejs ma ciemny, „butikowy” motyw: półprzezroczyste panele, różowo-f
 - **HUD** z fazą, budżetem, zegarem i tematami;
 - **lista uczestniczek** z oznaczeniem botów i aktualnie prezentującej osoby;
 - pulsujący przycisk **Wejdź do gry**;
-- **dock** z ikonami: Salon, Sklepy/Oceny, Butik +, Zasady, Muzyka;
+- **dock** z ikonami: Salon, Sklepy/Wyniki, Ranking, Butik, Zasady, Muzyka;
 - karty produktów w siatce z ceną, statusem i kolorem.
 
-Skróty: M — Salon, B — Butik +, Esc — zamknij okno.
+Skróty: M — Salon, B — Butik, R — Ranking, Esc — zamknij okno.
 
 Muzyka gra lokalnie i zmienia się z fazą gry: spokojna w poczekalni, rytmiczna podczas zakupów, „catwalkowa” na pokazie, radosna przy wynikach. Przycisk **🔊 Muzyka** ją wycisza. Utwory pochodzą z licencjonowanej biblioteki **APM Music** udostępnionej przez Roblox (konto APMOfficial), więc działają w każdej grze bez ryzyka wyciszenia za prawa autorskie. Identyfikatory są w `Config.Music`.
 
-**Butik + zawiera wyłącznie zapowiedzi dodatków.** Nie ma cen, produktów płatnych ani okien płatności.
+**Butik działa za monety z gry.** Nie ma płatności za Robuxy; ich dodanie wymagałoby osobnego przygotowania produktów w Roblox.
 
 ## Kod i testy
 
@@ -98,7 +117,9 @@ Muzyka gra lokalnie i zmienia się z fazą gry: spokojna w poczekalni, rytmiczna
 - `src/server/Appearance.luau`: zakładanie przedmiotów z katalogu, manekiny i walidacja ID.
 - `src/server/World.luau`: generator galerii, automatyczne drzwi, wymiana ekspozycji.
 - `src/server/BotActors.luau`: postacie botów, chodzenie i animacje.
-- `src/server/init.server.luau`: zapisy, przebieg rundy, boty, pokazy i wyniki.
+- `src/server/init.server.luau`: zapisy, intro, zakupy, pokaz z jury, podium i nagrody.
+- `src/server/Progress.luau` i `Cosmetics.luau`: zapis postępu, ranking, Butik i efekty kosmetyczne.
+- `src/shared/Scoring.luau`: punktacja pokazu, nagrody i rangi.
 - `src/client/UI.luau`, `Music.luau` i `init.client.luau`: wygląd, muzyka i interakcje GUI.
 
 ```sh
@@ -107,6 +128,7 @@ luau tests/ui_state.luau
 luau tests/mall.luau
 luau tests/bots.luau
 python tests/check_world.py
+python tests/check_flow.py
 rojo build -o "Ola Roblox.rbxlx"
 ```
 
@@ -119,14 +141,14 @@ rojo build -o "Ola Roblox.rbxlx"
 - szczelny salon i odświeżanie ekspozycji;
 - modele zapasowe wszystkich 66 przedmiotów na R6/R15.
 
-`bots.luau` odtwarza 300 planów zakupowych botów przez prawdziwe reguły. Testy nie uruchamiają silnika Roblox: renderowanie, fizykę, pathfinding i animacje trzeba sprawdzić w Studio.
+`bots.luau` odtwarza 300 planów zakupowych botów przez prawdziwe reguły i sprawdza punktację, nagrody oraz rangi. `check_flow.py` uruchamia prawdziwy skrypt serwera na atrapach silnika z wirtualnym zegarem i przechodzi cały odcinek: zapis → intro → zakupy gracza i botów → 8 pokazów z głosowaniem → podium → zapis monet i gwiazdek → zakup w Butiku. Testy nie uruchamiają silnika Roblox: renderowanie, fizykę, pathfinding i animacje trzeba sprawdzić w Studio.
 
 ### Kontrola ręczna w Studio
 
 1. Jednym klientem: wejście drzwiami i przyciskiem, 5 s odliczania, przeniesienie z kanapy, automatyczne drzwi, 1500 zł i 8 minut. Powinny pojawić się trzy postacie [BOT].
 2. Sprawdź ruchome schody i schody w obu kierunkach, kładki, balustrady i food court. Sprawdź, czy boty dochodzą do sklepów na obu piętrach i kompletują zestawy.
 3. Sprawdź manekiny i miniaturki z katalogu, przymiarkę i noszenie prawdziwych ubrań (R15) oraz wersję uproszczoną na awatarze R6. Zakup z daleka, z innego piętra lub w niewłaściwym sklepie ma być odrzucony. Przetestuj przymiarkę, kolory, dwa zapisane zestawy i reset postaci.
-4. Przejdź pełną rundę: pokazy botów i gracza, głosowanie, ranking i powrót do salonu. W następnej rundzie oferta ma się zmienić, a stare boty zniknąć.
+4. Przejdź pełny odcinek: intro z prowadzącą (i pomijanie), pokaz w studiu z kamerą, komentarze jury, gwiazdki, podium z konfetti, nagrody, ranking, zakup w Butiku i powrót do salonu. W następnej rundzie oferta ma się zmienić, a stare boty zniknąć.
 5. Drugim klientem sprawdź zapis w trakcie odliczania i zapis na następną rundę.
 6. Sprawdź muzykę i jej wyciszanie, czytelność GUI na telefonie (emulator) oraz klatkaż w całej galerii.
 
